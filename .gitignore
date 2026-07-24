@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# CodeGraph local index
+.codegraph/
+
+# opencode local config
+.opencode/
+
+# uv lock file (auto-generated)
+# uv.lock
