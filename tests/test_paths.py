@@ -30,3 +30,18 @@ def test_paths_profile_config():
 def test_paths_profile_skills():
     p = OpenCodePaths()
     assert p.profile_skills("work").name == "skills"
+
+
+def test_paths_tui_config_file():
+    p = OpenCodePaths()
+    assert p.tui_config_file.name == "tui.json"
+
+
+def test_paths_profile_tui_config():
+    p = OpenCodePaths()
+    assert p.profile_tui_config("work").name == "tui.json"
+
+
+def test_paths_relative_target_tui():
+    p = OpenCodePaths()
+    assert str(p.relative_target_tui("work")).endswith("profiles/work/tui.json")
