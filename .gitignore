@@ -15,5 +15,8 @@ wheels/
 # opencode local config
 .opencode/
 
+# Build artifacts
+dist/
+
 # uv lock file (auto-generated)
 # uv.lock

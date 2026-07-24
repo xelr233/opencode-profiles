@@ -4,8 +4,23 @@
 
 ## 安装
 
+### 开发模式
+
 ```bash
 uv pip install -e .
+```
+
+### 全局安装（推荐）
+
+```bash
+uv tool install --from dist/opencode_profiles-0.1.0-py3-none-any.whl opencode-profiles
+```
+
+或从源码构建后安装：
+
+```bash
+uv build
+uv tool install --from dist/opencode_profiles-0.1.0-py3-none-any.whl opencode-profiles
 ```
 
 ## 使用方法
