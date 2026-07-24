@@ -155,3 +155,44 @@ def test_get_active(paths, existing_config):
 
 def test_get_active_returns_none_if_not_symlink(paths):
     assert get_active(paths) is None
+
+
+class TestCreateEmptyWithSource:
+    """测试 create_empty 的 source 参数功能。"""
+
+    def test_create_empty_with_from_current(self, paths, existing_config, sample_config):
+        """从当前配置导入 provider 创建新 profile。"""
+        ensure_initialized(paths)
+        create_empty(paths, "work", source="current")
+        content = json.loads(paths.profile_config("work").read_text())
+        assert content == {"provider": sample_config["provider"]}
+
+    def test_create_empty_with_from_profile(self, paths, existing_config, sample_config):
+        """从指定 profile 导入 provider 创建新 profile。"""
+        create_from_current(paths, "personal")
+        create_empty(paths, "work", source="personal")
+        content = json.loads(paths.profile_config("work").read_text())
+        assert content == {"provider": sample_config["provider"]}
+
+    def test_create_empty_source_not_found(self, paths, existing_config):
+        """源 profile 不存在时报错。"""
+        ensure_initialized(paths)
+        with pytest.raises(FileNotFoundError):
+            create_empty(paths, "work", source="nonexistent")
+
+    def test_create_empty_source_no_provider(self, paths, existing_config, tmp_path):
+        """源配置无 provider 时报错。"""
+        ensure_initialized(paths)
+        no_provider_dir = paths.profile_dir("no_provider")
+        no_provider_dir.mkdir(parents=True)
+        paths.profile_config("no_provider").write_text('{"shell": "bash"}')
+        paths.profile_skills("no_provider").mkdir(exist_ok=True)
+        with pytest.raises(ValueError, match="no providers"):
+            create_empty(paths, "work", source="no_provider")
+
+    def test_create_empty_backward_compatible(self, paths, existing_config):
+        """不传 source 时行为不变（写入 {}）。"""
+        ensure_initialized(paths)
+        create_empty(paths, "empty")
+        content = json.loads(paths.profile_config("empty").read_text())
+        assert content == {}

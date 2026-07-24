@@ -75,8 +75,40 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
         raise RuntimeError("config_file is not a symlink after init")
 
 
-def create_empty(paths: OpenCodePaths, name: str) -> None:
-    """创建空 profile（最小合法 JSON）。"""
+def _load_providers(paths: OpenCodePaths, source: str) -> dict:
+    """从源配置读取 provider dict。source 为 'current' 或 profile 名。
+
+    Raises:
+        FileNotFoundError: 源配置不存在
+        ValueError: 源配置无 provider 或 provider 为空
+    """
+    if source == "current":
+        config = paths.config_file
+        if not config.is_symlink():
+            raise FileNotFoundError("Current config is not a symlink")
+        target = config.resolve()
+        data = json.loads(target.read_text())
+    else:
+        config_path = paths.profile_config(source)
+        if not config_path.exists():
+            raise FileNotFoundError(f"Source profile '{source}' not found")
+        data = json.loads(config_path.read_text())
+
+    providers = data.get("provider")
+    if not providers:
+        raise ValueError("Source config has no providers to import")
+    return providers
+
+
+def create_empty(paths: OpenCodePaths, name: str, source: str | None = None) -> None:
+    """创建空 profile，可选从源配置导入 provider。
+
+    Args:
+        paths: 路径管理实例
+        name: 新 profile 名称
+        source: None 表示空配置；"current" 表示从当前激活配置导入；
+                其他字符串表示从指定 profile 名称导入
+    """
     ensure_initialized(paths)
 
     profile_dir = paths.profile_dir(name)
@@ -84,8 +116,15 @@ def create_empty(paths: OpenCodePaths, name: str) -> None:
         raise FileExistsError(f"Profile '{name}' already exists")
 
     profile_dir.mkdir(parents=True)
-    paths.profile_config(name).write_text("{}")
     paths.profile_skills(name).mkdir(exist_ok=True)
+
+    if source is None:
+        paths.profile_config(name).write_text("{}")
+    else:
+        providers = _load_providers(paths, source)
+        paths.profile_config(name).write_text(
+            json.dumps({"provider": providers}, indent=2)
+        )
 
 
 def switch(paths: OpenCodePaths, name: str) -> None:
