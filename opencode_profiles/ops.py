@@ -59,6 +59,11 @@ def backup(paths: OpenCodePaths) -> str:
     else:
         raise RuntimeError("config_file is not a symlink after init")
 
+    current_tui = paths.tui_config_file
+    if current_tui.is_symlink():
+        tui_target = current_tui.resolve()
+        shutil.copy2(tui_target, paths.profile_tui_config(backup_name))
+
     paths.profile_skills(backup_name).mkdir(exist_ok=True)
     return backup_name
 

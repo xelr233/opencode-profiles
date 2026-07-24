@@ -90,6 +90,18 @@ def test_backup_creates_skills_dir(paths, existing_config):
     assert paths.profile_skills(name).is_dir()
 
 
+def test_backup_with_tui_json(paths, existing_config, existing_tui_config):
+    ensure_initialized(paths)
+    name = backup(paths)
+    assert paths.profile_tui_config(name).exists()
+
+
+def test_backup_without_tui_json(paths, existing_config):
+    ensure_initialized(paths)
+    name = backup(paths)
+    assert not paths.profile_tui_config(name).exists()
+
+
 # --- create ---
 
 def test_create_from_current(paths, existing_config, sample_config):
