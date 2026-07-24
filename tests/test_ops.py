@@ -51,6 +51,23 @@ def test_init_creates_default_if_no_existing_config(paths):
     assert json.loads(default_config.read_text()) == {}
 
 
+def test_init_migrates_tui_json(paths, existing_config, existing_tui_config):
+    ensure_initialized(paths)
+    assert paths.tui_config_file.is_symlink()
+    assert paths.tui_config_file.resolve() == paths.profile_tui_config("default").resolve()
+
+
+def test_init_without_tui_json(paths, existing_config):
+    ensure_initialized(paths)
+    assert not paths.tui_config_file.exists()
+
+
+def test_init_tui_json_already_symlink(paths, existing_config, existing_tui_config):
+    ensure_initialized(paths)
+    ensure_initialized(paths)
+    assert paths.tui_config_file.is_symlink()
+
+
 # --- backup ---
 
 def test_backup_creates_backup_dir(paths, existing_config):

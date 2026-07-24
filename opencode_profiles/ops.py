@@ -21,6 +21,7 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
     default_dir = paths.profile_dir("default")
     default_dir.mkdir(parents=True, exist_ok=True)
     default_config = paths.profile_config("default")
+    default_tui_config = paths.profile_tui_config("default")
     skills_dir = paths.profile_skills("default")
     skills_dir.mkdir(exist_ok=True)
 
@@ -34,6 +35,12 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
         default_config.write_text("{}")
 
     os.symlink(paths.relative_target("default"), config)
+
+    tui_config = paths.tui_config_file
+    if tui_config.exists() and not tui_config.is_symlink():
+        shutil.copy2(tui_config, default_tui_config)
+        tui_config.unlink()
+        os.symlink(paths.relative_target_tui("default"), tui_config)
 
 
 def backup(paths: OpenCodePaths) -> str:
