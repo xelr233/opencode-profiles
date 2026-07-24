@@ -119,6 +119,18 @@ def test_create_from_current_raises_if_exists(paths, existing_config):
         create_from_current(paths, "work")
 
 
+def test_create_from_current_with_tui(paths, existing_config, existing_tui_config):
+    ensure_initialized(paths)
+    create_from_current(paths, "work")
+    assert paths.profile_tui_config("work").exists()
+
+
+def test_create_from_current_without_tui(paths, existing_config):
+    ensure_initialized(paths)
+    create_from_current(paths, "work")
+    assert not paths.profile_tui_config("work").exists()
+
+
 def test_create_empty(paths, existing_config):
     ensure_initialized(paths)
     create_empty(paths, "empty")

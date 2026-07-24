@@ -86,6 +86,10 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
     else:
         raise RuntimeError("config_file is not a symlink after init")
 
+    current_tui = paths.profile_tui_config(get_active(paths))
+    if current_tui.exists():
+        shutil.copy2(current_tui, paths.profile_tui_config(name))
+
 
 def _load_providers(paths: OpenCodePaths, source: str) -> dict:
     """从源配置读取 provider dict。source 为 'current' 或 profile 名。
