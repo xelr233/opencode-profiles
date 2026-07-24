@@ -19,11 +19,18 @@ class OpenCodePaths:
     def profiles_dir(self) -> Path:
         return self._base_dir / "profiles"
 
+    @property
+    def tui_config_file(self) -> Path:
+        return self._base_dir / "tui.json"
+
     def profile_dir(self, name: str) -> Path:
         return self._base_dir / "profiles" / name
 
     def profile_config(self, name: str) -> Path:
         return self.profile_dir(name) / "opencode.json"
+
+    def profile_tui_config(self, name: str) -> Path:
+        return self.profile_dir(name) / "tui.json"
 
     def profile_skills(self, name: str) -> Path:
         return self.profile_dir(name) / "skills"
@@ -31,3 +38,7 @@ class OpenCodePaths:
     def relative_target(self, name: str) -> Path:
         """返回指向指定 profile 配置文件的相对路径（用于 symlink）。"""
         return Path("profiles") / name / "opencode.json"
+
+    def relative_target_tui(self, name: str) -> Path:
+        """返回指向指定 profile tui.json 的相对路径（用于 symlink）。"""
+        return Path("profiles") / name / "tui.json"
