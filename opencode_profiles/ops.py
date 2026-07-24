@@ -174,6 +174,17 @@ def switch(paths: OpenCodePaths, name: str) -> None:
 
     os.symlink(paths.relative_target(name), config)
 
+    # 管理 tui.json symlink
+    tui_config = paths.tui_config_file
+    tui_target = paths.profile_tui_config(name)
+
+    if tui_target.exists():
+        if tui_config.is_symlink() or tui_config.exists():
+            tui_config.unlink()
+        os.symlink(paths.relative_target_tui(name), tui_config)
+    elif tui_config.is_symlink():
+        tui_config.unlink()
+
 
 def list_profiles(paths: OpenCodePaths) -> list[str]:
     """列出所有 profile 名称。"""

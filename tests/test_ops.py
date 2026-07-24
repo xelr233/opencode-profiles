@@ -168,6 +168,22 @@ def test_switch_raises_if_not_found(paths, existing_config):
         switch(paths, "nonexistent")
 
 
+def test_switch_with_tui_json(paths, existing_config, existing_tui_config):
+    ensure_initialized(paths)
+    create_from_current(paths, "work")
+    switch(paths, "work")
+    assert paths.tui_config_file.is_symlink()
+    assert paths.tui_config_file.resolve() == paths.profile_tui_config("work").resolve()
+
+
+def test_switch_to_profile_without_tui(paths, existing_config, existing_tui_config):
+    ensure_initialized(paths)
+    create_empty(paths, "work")  # no tui.json
+    switch(paths, "work")
+    # tui.json symlink should be removed if it existed
+    assert not paths.tui_config_file.is_symlink()
+
+
 # --- list ---
 
 def test_list_profiles(paths, existing_config):
