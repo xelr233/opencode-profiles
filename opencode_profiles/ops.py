@@ -2,8 +2,6 @@ import json
 import os
 import shutil
 from datetime import datetime
-from pathlib import Path
-
 from opencode_profiles.paths import OpenCodePaths
 
 
@@ -35,8 +33,7 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
     else:
         default_config.write_text("{}")
 
-    rel_target = Path("profiles") / "default" / "opencode.json"
-    os.symlink(rel_target, config)
+    os.symlink(paths.relative_target("default"), config)
 
 
 def backup(paths: OpenCodePaths) -> str:
@@ -53,7 +50,7 @@ def backup(paths: OpenCodePaths) -> str:
         target = current_config.resolve()
         shutil.copy2(target, paths.profile_config(backup_name))
     else:
-        paths.profile_config(backup_name).write_text("{}")
+        raise RuntimeError("config_file is not a symlink after init")
 
     paths.profile_skills(backup_name).mkdir(exist_ok=True)
     return backup_name
@@ -75,9 +72,7 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
         target = current_config.resolve()
         shutil.copy2(target, paths.profile_config(name))
     else:
-        paths.profile_config(name).write_text(
-            json.dumps(json.loads(current_config.read_text()), indent=2)
-        )
+        raise RuntimeError("config_file is not a symlink after init")
 
 
 def create_empty(paths: OpenCodePaths, name: str) -> None:
@@ -110,8 +105,7 @@ def switch(paths: OpenCodePaths, name: str) -> None:
     if config.is_symlink() or config.exists():
         config.unlink()
 
-    rel_target = Path("profiles") / name / "opencode.json"
-    os.symlink(rel_target, config)
+    os.symlink(paths.relative_target(name), config)
 
 
 def list_profiles(paths: OpenCodePaths) -> list[str]:

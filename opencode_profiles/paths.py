@@ -27,3 +27,7 @@ class OpenCodePaths:
 
     def profile_skills(self, name: str) -> Path:
         return self.profile_dir(name) / "skills"
+
+    def relative_target(self, name: str) -> Path:
+        """返回指向指定 profile 配置文件的相对路径（用于 symlink）。"""
+        return Path("profiles") / name / "opencode.json"
