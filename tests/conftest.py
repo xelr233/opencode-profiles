@@ -40,3 +40,11 @@ def existing_config(tmp_opencode, sample_config):
     config_file = tmp_opencode / "opencode.json"
     config_file.write_text(json.dumps(sample_config, indent=2))
     return config_file
+
+
+@pytest.fixture
+def existing_tui_config(tmp_opencode):
+    """在临时目录中创建实际的 tui.json 配置文件。"""
+    tui_file = tmp_opencode / "tui.json"
+    tui_file.write_text(json.dumps({"theme": "dark", "fontSize": 14}, indent=2))
+    return tui_file
