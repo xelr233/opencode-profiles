@@ -146,6 +146,14 @@ def create_empty(paths: OpenCodePaths, name: str, source: str | None = None) -> 
             json.dumps({"provider": providers}, indent=2)
         )
 
+    if source is not None:
+        if source == "current":
+            src_tui = paths.profile_tui_config(get_active(paths))
+        else:
+            src_tui = paths.profile_tui_config(source)
+        if src_tui.exists():
+            shutil.copy2(src_tui, paths.profile_tui_config(name))
+
 
 def switch(paths: OpenCodePaths, name: str) -> None:
     """切换 symlink 指向目标 profile。"""

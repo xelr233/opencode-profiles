@@ -231,6 +231,18 @@ class TestCreateEmptyWithSource:
         with pytest.raises(ValueError, match="no providers"):
             create_empty(paths, "work", source="no_provider")
 
+    def test_create_empty_with_tui_from_current(self, paths, existing_config, existing_tui_config):
+        """从当前配置导入时，tui.json 也被复制。"""
+        ensure_initialized(paths)
+        create_empty(paths, "work", source="current")
+        assert paths.profile_tui_config("work").exists()
+
+    def test_create_empty_without_tui_from_current(self, paths, existing_config):
+        """当前配置无 tui.json 时不创建。"""
+        ensure_initialized(paths)
+        create_empty(paths, "work", source="current")
+        assert not paths.profile_tui_config("work").exists()
+
     def test_create_empty_backward_compatible(self, paths, existing_config):
         """不传 source 时行为不变（写入 {}）。"""
         ensure_initialized(paths)
