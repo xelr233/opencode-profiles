@@ -8,3 +8,8 @@ dependencies = ["click>=8.0"]
 
 [project.scripts]
 opencode-profiles = "opencode_profiles.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
