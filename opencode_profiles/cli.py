@@ -28,6 +28,8 @@ def main(backup_flag, create, empty, switch_name, list_flag, from_current, from_
         raise click.ClickException("--from-current and --from-profile are mutually exclusive")
     if (from_current or from_profile) and not empty:
         raise click.ClickException("--from-current/--from-profile can only be used with -e")
+    if from_profile == "current":
+        raise click.ClickException("'current' is a reserved name and cannot be used as --from-profile value")
 
     if backup_flag:
         name = backup(paths)

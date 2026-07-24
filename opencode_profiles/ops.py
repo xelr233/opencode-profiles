@@ -115,13 +115,17 @@ def create_empty(paths: OpenCodePaths, name: str, source: str | None = None) -> 
     if profile_dir.exists():
         raise FileExistsError(f"Profile '{name}' already exists")
 
+    if source is not None:
+        providers = _load_providers(paths, source)
+    else:
+        providers = None
+
     profile_dir.mkdir(parents=True)
     paths.profile_skills(name).mkdir(exist_ok=True)
 
-    if source is None:
+    if providers is None:
         paths.profile_config(name).write_text("{}")
     else:
-        providers = _load_providers(paths, source)
         paths.profile_config(name).write_text(
             json.dumps({"provider": providers}, indent=2)
         )
