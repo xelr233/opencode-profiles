@@ -4,12 +4,17 @@ from pathlib import Path
 class OpenCodePaths:
     """管理 opencode 配置路径常量。"""
 
-    def __init__(self, base_dir: Path | None = None):
+    def __init__(self, base_dir: Path | None = None, skill_sources_dir: Path | None = None):
         self._base_dir = base_dir or Path.home() / ".config" / "opencode"
+        self._skill_sources_dir = skill_sources_dir or Path.home() / ".cc-switch" / "skills"
 
     @property
     def base_dir(self) -> Path:
         return self._base_dir
+
+    @property
+    def skill_sources_dir(self) -> Path:
+        return self._skill_sources_dir
 
     @property
     def config_file(self) -> Path:
@@ -34,6 +39,12 @@ class OpenCodePaths:
 
     def profile_skills(self, name: str) -> Path:
         return self.profile_dir(name) / "skills"
+
+    def profile_skills_yml(self, name: str) -> Path:
+        return self.profile_dir(name) / "skills.yml"
+
+    def skill_source(self, name: str) -> Path:
+        return self._skill_sources_dir / name
 
     def relative_target(self, name: str) -> Path:
         """返回指向指定 profile 配置文件的相对路径（用于 symlink）。"""
