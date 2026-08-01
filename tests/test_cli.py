@@ -145,3 +145,55 @@ class TestEmptyWithProviderImport:
         result = runner.invoke(main, ["-e", "work", "--from-current"])
         assert result.exit_code != 0
         assert "no providers" in result.output.lower()
+
+
+class TestSkillCommands:
+    def test_add_skill_command(self, runner, cli_paths, monkeypatch, tmp_path):
+        """CLI: --add-skill rtk --profile work"""
+        from opencode_profiles.ops import create_empty, ensure_initialized
+        from opencode_profiles.skills import read_skills_yml
+
+        # Setup skill sources
+        src = tmp_path / "skill-sources"
+        src.mkdir()
+        (src / "rtk").mkdir()
+        (src / "rtk" / "SKILL.md").write_text("# rtk")
+        monkeypatch.setattr(cli_paths, "_skill_sources_dir", src)
+        monkeypatch.setattr("opencode_profiles.skills.DB_PATH", tmp_path / "nonexistent.db")
+
+        ensure_initialized(cli_paths)
+        create_empty(cli_paths, "work")
+        monkeypatch.setattr("opencode_profiles.cli.paths", cli_paths)
+
+        result = runner.invoke(main, ["--add-skill", "rtk", "--profile", "work"])
+        assert result.exit_code == 0
+        assert "Added skill" in result.output
+        assert read_skills_yml(cli_paths, "work") == ["rtk"]
+
+    def test_remove_skill_command(self, runner, cli_paths, monkeypatch, tmp_path):
+        """CLI: --remove-skill rtk --profile work"""
+        from opencode_profiles.ops import create_empty, ensure_initialized
+        from opencode_profiles.skills import read_skills_yml, write_skills_yml
+
+        src = tmp_path / "skill-sources"
+        src.mkdir()
+        (src / "rtk").mkdir()
+        monkeypatch.setattr(cli_paths, "_skill_sources_dir", src)
+        monkeypatch.setattr("opencode_profiles.skills.DB_PATH", tmp_path / "nonexistent.db")
+
+        ensure_initialized(cli_paths)
+        create_empty(cli_paths, "work")
+        write_skills_yml(cli_paths, "work", ["rtk"])
+        monkeypatch.setattr("opencode_profiles.cli.paths", cli_paths)
+
+        result = runner.invoke(main, ["--remove-skill", "rtk", "--profile", "work"])
+        assert result.exit_code == 0
+        assert "Removed skill" in result.output
+        assert read_skills_yml(cli_paths, "work") == []
+
+    def test_add_skill_requires_profile(self, runner, cli_paths, monkeypatch):
+        """--add-skill 无 --profile 时报错。"""
+        monkeypatch.setattr("opencode_profiles.cli.paths", cli_paths)
+        result = runner.invoke(main, ["--add-skill", "rtk"])
+        assert result.exit_code != 0
+        assert "requires --profile" in result.output

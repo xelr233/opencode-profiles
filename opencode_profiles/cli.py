@@ -9,6 +9,7 @@ from opencode_profiles.ops import (
     switch,
 )
 from opencode_profiles.paths import OpenCodePaths
+from opencode_profiles.skills import add_skill, remove_skill
 
 paths = OpenCodePaths()
 
@@ -21,7 +22,11 @@ paths = OpenCodePaths()
 @click.option("-l", "--list", "list_flag", is_flag=True, help="列出所有 profile")
 @click.option("--from-current", is_flag=True, help="从当前配置导入 provider（配合 -e 使用）")
 @click.option("--from-profile", type=str, help="从指定 profile 导入 provider（配合 -e 使用）")
-def main(backup_flag, create, empty, switch_name, list_flag, from_current, from_profile):
+@click.option("--add-skill", "add_skill_name", type=str, help="Add a skill to a profile (requires --profile)")
+@click.option("--remove-skill", "remove_skill_name", type=str, help="Remove a skill from a profile (requires --profile)")
+@click.option("--profile", type=str, help="Target profile for --add-skill/--remove-skill")
+def main(backup_flag, create, empty, switch_name, list_flag, from_current, from_profile,
+         add_skill_name, remove_skill_name, profile):
     """opencode-profiles — 多配置管理工具。"""
     if from_current and from_profile:
         raise click.ClickException("--from-current and --from-profile are mutually exclusive")
@@ -64,6 +69,19 @@ def main(backup_flag, create, empty, switch_name, list_flag, from_current, from_
             click.echo(f"Switched to '{switch_name}'")
         except FileNotFoundError as e:
             raise click.ClickException(str(e)) from e
+    elif add_skill_name:
+        if not profile:
+            raise click.ClickException("--add-skill requires --profile")
+        try:
+            add_skill(paths, profile, add_skill_name)
+            click.echo(f"Added skill '{add_skill_name}' to profile '{profile}'")
+        except FileNotFoundError as e:
+            raise click.ClickException(str(e)) from e
+    elif remove_skill_name:
+        if not profile:
+            raise click.ClickException("--remove-skill requires --profile")
+        remove_skill(paths, profile, remove_skill_name)
+        click.echo(f"Removed skill '{remove_skill_name}' from profile '{profile}'")
     elif list_flag:
         profiles = list_profiles(paths)
         active = get_active(paths)
