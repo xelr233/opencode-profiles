@@ -56,12 +56,19 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
 
     # Handle tui.json (also check for dangling symlink)
     tui_config = paths.tui_config_file
-    if tui_config.is_symlink() and not tui_config.exists():
+    tui_was_dangling = tui_config.is_symlink() and not tui_config.exists()
+    if tui_was_dangling:
         tui_config.unlink()
 
     if tui_config.exists() and not tui_config.is_symlink():
         shutil.copy2(tui_config, default_tui_config)
         tui_config.unlink()
+        os.symlink(paths.relative_target_tui("default"), tui_config)
+    elif tui_was_dangling:
+        # tui.json was a dangling symlink — recreate symlink pointing
+        # to default profile; create empty tui.json in default if needed.
+        if not default_tui_config.exists():
+            default_tui_config.write_text("{}")
         os.symlink(paths.relative_target_tui("default"), tui_config)
 
     # Write skills.yml for default profile
@@ -104,6 +111,14 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
         raise RuntimeError("config_file is not a symlink after init")
     target = current_config.resolve()
 
+    # 读取 tui.json 内容（在 rmtree 之前，防止覆盖激活 profile 时源文件被删）
+    active = get_active(paths)
+    tui_content: str | None = None
+    if active is not None:
+        current_tui = paths.profile_tui_config(active)
+        if current_tui.exists():
+            tui_content = current_tui.read_text()
+
     profile_dir = paths.profile_dir(name)
     if profile_dir.exists():
         # 先复制到临时位置（保持元数据），再 rmtree，再 move 回来——
@@ -125,11 +140,9 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
         paths.profile_skills(name).mkdir(exist_ok=True)
         shutil.copy2(target, paths.profile_config(name))
 
-    active = get_active(paths)
-    if active is not None:
-        current_tui = paths.profile_tui_config(active)
-        if current_tui.exists():
-            shutil.copy2(current_tui, paths.profile_tui_config(name))
+    # 写入 tui.json（使用提前读取的内容）
+    if tui_content is not None:
+        paths.profile_tui_config(name).write_text(tui_content)
 
     # Write skills.yml for new profile
     current = scan_current_skills(paths)

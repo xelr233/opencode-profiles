@@ -416,8 +416,8 @@ class TestDanglingSymlinkRecovery:
         assert config.is_symlink()
         assert config.exists()
 
-    def test_dangling_tui_symlink_cleaned_up(self, paths, existing_config, existing_tui_config):
-        """tui.json 悬空 symlink 时被清理，不阻塞初始化。"""
+    def test_dangling_tui_symlink_recreated(self, paths, existing_config, existing_tui_config):
+        """tui.json 悬空 symlink 时被重新创建指向 default profile。"""
 
         ensure_initialized(paths)
         # 删除 profiles 目录使 symlink 悬空
@@ -428,10 +428,37 @@ class TestDanglingSymlinkRecovery:
         tui_config = paths.tui_config_file
         assert tui_config.is_symlink()
         assert not tui_config.exists()
-        # 初始化不应报错
+        # 初始化应重新创建 tui.json symlink
         ensure_initialized(paths)
-        # tui symlink 应该被清理（因为目标不存在）
-        assert not tui_config.exists()
+        assert tui_config.is_symlink()
+        assert tui_config.exists()
+        # default profile 应有 tui.json
+        default_tui = paths.profile_tui_config("default")
+        assert default_tui.exists()
+
+    def test_rm_rf_then_create_default_copies_tui(
+        self, paths, existing_config, existing_tui_config, skill_sources, monkeypatch
+    ):
+        """rm -rf * 后 -c default 应成功复制 tui.json。"""
+
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        ensure_initialized(paths)
+        # 模拟 rm -rf profiles/*
+        profiles_dir = paths.profiles_dir
+        for item in profiles_dir.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+        # -c default 应覆盖重建并复制 tui.json
+        create_from_current(paths, "default")
+        assert paths.profile_config("default").exists()
+        assert paths.config_file.is_symlink()
+        assert paths.config_file.exists()
+        # tui.json 应被复制到 default profile
+        default_tui = paths.profile_tui_config("default")
+        assert default_tui.exists()
+        tui_config = paths.tui_config_file
+        assert tui_config.is_symlink()
+        assert tui_config.exists()
 
     def test_no_bak_creates_empty_config(self, paths):
         """无 .bak 文件时，悬空 symlink 恢复后创建空配置。"""
