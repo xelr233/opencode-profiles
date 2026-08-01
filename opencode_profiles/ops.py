@@ -110,11 +110,16 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
         # 因为当覆盖当前激活的 profile 时，源和目标是同一个文件，
         # 必须先保存内容再删除目录。
         tmp_path = paths.base_dir / f".opencode.json.tmp.{name}"
-        shutil.copy2(target, tmp_path)
-        shutil.rmtree(profile_dir)
-        profile_dir.mkdir(parents=True)
-        paths.profile_skills(name).mkdir(exist_ok=True)
-        shutil.move(tmp_path, paths.profile_config(name))
+        try:
+            shutil.copy2(target, tmp_path)
+            shutil.rmtree(profile_dir)
+            profile_dir.mkdir(parents=True)
+            paths.profile_skills(name).mkdir(exist_ok=True)
+            shutil.move(tmp_path, paths.profile_config(name))
+        except BaseException:
+            if tmp_path.exists():
+                tmp_path.unlink()
+            raise
     else:
         profile_dir.mkdir(parents=True)
         paths.profile_skills(name).mkdir(exist_ok=True)
