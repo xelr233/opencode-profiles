@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import sqlite3
+from pathlib import Path
+
 import yaml
 
 from opencode_profiles.paths import OpenCodePaths
+
+DB_PATH = Path.home() / ".cc-switch" / "cc-switch.db"
 
 
 def read_skills_yml(paths: OpenCodePaths, name: str) -> list[str]:
@@ -60,3 +67,71 @@ def remove_skill(paths: OpenCodePaths, name: str, skill: str) -> None:
     if skill in skills:
         skills.remove(skill)
     write_skills_yml(paths, name, skills)
+
+
+def sync_skills(paths: OpenCodePaths, target_name: str, db_path: Path | None = None) -> None:
+    """Sync opencode/skills/ symlinks to match target profile's skills.yml.
+
+    Validates all target sources exist before modifying anything.
+    Updates cc-switch.db after successful sync.
+    """
+    target_skills = read_skills_yml(paths, target_name)
+
+    skills_dir = paths.base_dir / "skills"
+    current_skills = []
+    if skills_dir.exists():
+        current_skills = sorted(entry.name for entry in skills_dir.iterdir())
+
+    for skill in target_skills:
+        source = paths.skill_source(skill)
+        if not source.exists():
+            raise FileNotFoundError(f"Skill source '{skill}' not found at {source}")
+
+    to_add, to_remove = compute_diff(current_skills, target_skills)
+
+    skills_dir.mkdir(exist_ok=True)
+
+    for skill in to_remove:
+        link = skills_dir / skill
+        if link.is_symlink():
+            link.unlink()
+        elif link.exists():
+            if link.is_dir():
+                shutil.rmtree(link)
+            else:
+                link.unlink()
+
+    for skill in to_add:
+        link = skills_dir / skill
+        if link.is_symlink():
+            link.unlink()
+        elif link.exists():
+            if link.is_dir():
+                shutil.rmtree(link)
+            else:
+                link.unlink()
+        os.symlink(paths.skill_source(skill), link)
+
+    _update_db(target_skills, db_path=db_path)
+
+
+def _update_db(active_skills: list[str], db_path: Path | None = None) -> None:
+    """Update enabled_opencode in cc-switch.db based on active skills."""
+    if db_path is None:
+        db_path = DB_PATH
+    if not db_path.exists():
+        return
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("UPDATE skills SET enabled_opencode = 0")
+            for skill in active_skills:
+                conn.execute(
+                    "UPDATE skills SET enabled_opencode = 1 WHERE name = ?",
+                    (skill,),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        pass

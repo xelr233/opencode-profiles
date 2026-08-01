@@ -1,3 +1,7 @@
+import os
+import sqlite3
+from pathlib import Path
+
 import pytest
 
 from opencode_profiles.skills import (
@@ -6,6 +10,7 @@ from opencode_profiles.skills import (
     read_skills_yml,
     remove_skill,
     scan_current_skills,
+    sync_skills,
     write_skills_yml,
 )
 
@@ -98,3 +103,72 @@ class TestRemoveSkill:
         write_skills_yml(paths_with_sources, "work", ["rtk"])
         remove_skill(paths_with_sources, "work", "mavenbuild")
         assert read_skills_yml(paths_with_sources, "work") == ["rtk"]
+
+
+class TestSyncSkills:
+    def test_sync_adds_symlinks(self, paths_with_sources):
+        write_skills_yml(paths_with_sources, "work", ["rtk", "mavenbuild"])
+        sync_skills(paths_with_sources, "work", db_path=Path("/dev/null"))
+        skills_dir = paths_with_sources.base_dir / "skills"
+        assert (skills_dir / "rtk").is_symlink()
+        assert (skills_dir / "mavenbuild").is_symlink()
+
+    def test_sync_removes_symlinks(self, paths_with_sources):
+        skills_dir = paths_with_sources.base_dir / "skills"
+        skills_dir.mkdir()
+        os.symlink(paths_with_sources.skill_source("rtk"), skills_dir / "rtk")
+        os.symlink(paths_with_sources.skill_source("mavenbuild"), skills_dir / "mavenbuild")
+        write_skills_yml(paths_with_sources, "default", ["rtk", "mavenbuild"])
+        write_skills_yml(paths_with_sources, "work", ["rtk"])
+        sync_skills(paths_with_sources, "work", db_path=Path("/dev/null"))
+        assert (skills_dir / "rtk").is_symlink()
+        assert not (skills_dir / "mavenbuild").exists()
+
+    def test_sync_missing_source_fails_no_partial(self, paths_with_sources):
+        write_skills_yml(paths_with_sources, "work", ["rtk", "nonexistent"])
+        with pytest.raises(FileNotFoundError, match="nonexistent"):
+            sync_skills(paths_with_sources, "work", db_path=Path("/dev/null"))
+        skills_dir = paths_with_sources.base_dir / "skills"
+        assert not (skills_dir / "rtk").exists()
+
+    def test_sync_removes_real_dir_not_in_target(self, paths_with_sources):
+        skills_dir = paths_with_sources.base_dir / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "old-skill").mkdir()
+        (skills_dir / "old-skill" / "SKILL.md").write_text("old")
+        write_skills_yml(paths_with_sources, "default", [])
+        write_skills_yml(paths_with_sources, "work", ["rtk"])
+        sync_skills(paths_with_sources, "work", db_path=Path("/dev/null"))
+        assert not (skills_dir / "old-skill").exists()
+        assert (skills_dir / "rtk").is_symlink()
+
+
+class TestUpdateDb:
+    def test_update_sets_enabled_flag(self, tmp_path, monkeypatch):
+        db_path = tmp_path / "test.db"
+        conn = sqlite3.connect(db_path)
+        conn.execute("""CREATE TABLE skills (
+            id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL,
+            enabled_opencode BOOLEAN NOT NULL DEFAULT 0)""")
+        conn.execute("INSERT INTO skills (id, name, directory) VALUES ('local:a', 'a', 'a')")
+        conn.execute("INSERT INTO skills (id, name, directory) VALUES ('local:b', 'b', 'b')")
+        conn.execute("INSERT INTO skills (id, name, directory) VALUES ('local:c', 'c', 'c')")
+        conn.commit()
+        conn.close()
+
+        import opencode_profiles.skills as skills_mod
+
+        monkeypatch.setattr(skills_mod, "DB_PATH", db_path)
+        skills_mod._update_db(["a", "c"])
+
+        conn = sqlite3.connect(db_path)
+        rows = conn.execute("SELECT name, enabled_opencode FROM skills ORDER BY name").fetchall()
+        conn.close()
+        assert rows == [("a", 1), ("b", 0), ("c", 1)]
+
+    def test_update_missing_db_skips(self, tmp_path, monkeypatch):
+        import opencode_profiles.skills as skills_mod
+
+        monkeypatch.setattr(skills_mod, "DB_PATH", tmp_path / "nonexistent.db")
+        skills_mod._update_db(["a"])
+        # Should not raise
