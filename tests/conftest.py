@@ -49,3 +49,38 @@ def existing_tui_config(tmp_opencode):
     tui_file = tmp_opencode / "tui.json"
     tui_file.write_text(json.dumps({"theme": "dark", "fontSize": 14}, indent=2))
     return tui_file
+
+
+@pytest.fixture(autouse=True)
+def _skip_db_update(tmp_path, monkeypatch):
+    """Prevent tests from modifying the real cc-switch.db.
+
+    Safe to run before skills.py exists (skips if module not importable
+    or DB_PATH not yet defined).
+    """
+    import importlib
+
+    try:
+        mod = importlib.import_module("opencode_profiles.skills")
+    except ImportError:
+        return
+    if hasattr(mod, "DB_PATH"):
+        monkeypatch.setattr(mod, "DB_PATH", tmp_path / "nonexistent.db")
+
+
+@pytest.fixture
+def skill_sources(tmp_path):
+    """创建临时 skill 源目录，包含几个测试 skill。"""
+    src = tmp_path / "skill-sources"
+    src.mkdir()
+    for name in ["brainstorming", "rtk", "mavenbuild"]:
+        skill_dir = src / name
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(f"# {name}\n")
+    return src
+
+
+@pytest.fixture
+def paths_with_sources(tmp_opencode, skill_sources):
+    """返回带有 skill_sources_dir 的 OpenCodePaths 实例。"""
+    return OpenCodePaths(base_dir=tmp_opencode, skill_sources_dir=skill_sources)

@@ -4,6 +4,7 @@ import shutil
 from datetime import datetime
 
 from opencode_profiles.paths import OpenCodePaths
+from opencode_profiles.skills import scan_current_skills, write_skills_yml
 
 
 def ensure_initialized(paths: OpenCodePaths) -> None:
@@ -17,6 +18,10 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
     config = paths.config_file
 
     if config.is_symlink():
+        # Ensure default profile has skills.yml even on existing setups
+        if not paths.profile_skills_yml("default").exists():
+            current = scan_current_skills(paths)
+            write_skills_yml(paths, "default", current)
         return
 
     default_dir = paths.profile_dir("default")
@@ -42,6 +47,11 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
         shutil.copy2(tui_config, default_tui_config)
         tui_config.unlink()
         os.symlink(paths.relative_target_tui("default"), tui_config)
+
+    # Write skills.yml for default profile
+    if not paths.profile_skills_yml("default").exists():
+        current = scan_current_skills(paths)
+        write_skills_yml(paths, "default", current)
 
 
 def backup(paths: OpenCodePaths) -> str:
@@ -92,6 +102,10 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
         current_tui = paths.profile_tui_config(active)
         if current_tui.exists():
             shutil.copy2(current_tui, paths.profile_tui_config(name))
+
+    # Write skills.yml for new profile
+    current = scan_current_skills(paths)
+    write_skills_yml(paths, name, current)
 
 
 def _load_providers(paths: OpenCodePaths, source: str) -> dict:
@@ -148,12 +162,19 @@ def create_empty(paths: OpenCodePaths, name: str, source: str | None = None) -> 
         if source == "current":
             active = get_active(paths)
             if active is None:
+                # Still write skills.yml before returning
+                current = scan_current_skills(paths)
+                write_skills_yml(paths, name, current)
                 return
             src_tui = paths.profile_tui_config(active)
         else:
             src_tui = paths.profile_tui_config(source)
         if src_tui.exists():
             shutil.copy2(src_tui, paths.profile_tui_config(name))
+
+    # Write skills.yml for new profile
+    current = scan_current_skills(paths)
+    write_skills_yml(paths, name, current)
 
 
 def switch(paths: OpenCodePaths, name: str) -> None:
@@ -183,6 +204,11 @@ def switch(paths: OpenCodePaths, name: str) -> None:
         os.symlink(paths.relative_target_tui(name), tui_config)
     elif tui_config.is_symlink():
         tui_config.unlink()
+
+    # Sync skills symlinks
+    from opencode_profiles.skills import sync_skills
+
+    sync_skills(paths, name)
 
 
 def list_profiles(paths: OpenCodePaths) -> list[str]:
