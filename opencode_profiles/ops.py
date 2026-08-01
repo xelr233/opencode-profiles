@@ -99,6 +99,15 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
     """从当前激活的 profile 创建新 profile。"""
     ensure_initialized(paths)
 
+    # Read source config BEFORE removing the profile directory,
+    # because they may be the same file when overwriting the active profile.
+    current_config = paths.config_file
+    if current_config.is_symlink():
+        target = current_config.resolve()
+        source_content = target.read_text()
+    else:
+        raise RuntimeError("config_file is not a symlink after init")
+
     profile_dir = paths.profile_dir(name)
     if profile_dir.exists():
         shutil.rmtree(profile_dir)
@@ -106,12 +115,7 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
     profile_dir.mkdir(parents=True)
     paths.profile_skills(name).mkdir(exist_ok=True)
 
-    current_config = paths.config_file
-    if current_config.is_symlink():
-        target = current_config.resolve()
-        shutil.copy2(target, paths.profile_config(name))
-    else:
-        raise RuntimeError("config_file is not a symlink after init")
+    paths.profile_config(name).write_text(source_content)
 
     active = get_active(paths)
     if active is not None:

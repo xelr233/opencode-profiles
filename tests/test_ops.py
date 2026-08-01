@@ -368,6 +368,22 @@ class TestCreateOverwriteExisting:
         create_empty(paths, "work")
         assert paths.profile_config("work").read_text() == "{}"
 
+    def test_rm_rf_then_create_default(self, paths, existing_config, skill_sources, monkeypatch):
+        """rm -rf * 后 -c default 应成功创建。"""
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        ensure_initialized(paths)
+        # 模拟 rm -rf profiles/*
+        profiles_dir = paths.profiles_dir
+        for item in profiles_dir.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+        # 此时 symlink 悬空，ensure_initialized 会恢复 default
+        # 但 -c default 应覆盖它
+        create_from_current(paths, "default")
+        assert paths.profile_config("default").exists()
+        assert paths.config_file.is_symlink()
+        assert paths.config_file.exists()
+
 
 class TestDanglingSymlinkRecovery:
     """测试悬空 symlink 的恢复逻辑。"""
