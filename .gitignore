@@ -15,6 +15,9 @@ wheels/
 # opencode local config
 .opencode/
 
+# superpowers SDD progress/temp files
+.superpowers/
+
 # Build artifacts
 dist/
 
