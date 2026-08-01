@@ -11,6 +11,55 @@ from opencode_profiles.ops import (
     list_profiles,
     switch,
 )
+from opencode_profiles.skills import read_skills_yml
+
+
+class TestSkillsIntegration:
+    def test_ensure_initialized_creates_skills_yml(
+        self, paths, existing_config, skill_sources, monkeypatch
+    ):
+        """ensure_initialized 后 default profile 有 skills.yml。"""
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        ensure_initialized(paths)
+        yml = paths.profile_skills_yml("default")
+        assert yml.exists()
+
+    def test_create_from_current_copies_skills(
+        self, paths, existing_config, skill_sources, monkeypatch
+    ):
+        """create_from_current 扫描当前 skills 并写入新 profile。"""
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        skills_dir = paths.base_dir / "skills"
+        skills_dir.mkdir()
+        import os
+
+        os.symlink(skill_sources / "rtk", skills_dir / "rtk")
+        ensure_initialized(paths)
+        create_from_current(paths, "work")
+        assert read_skills_yml(paths, "work") == ["rtk"]
+
+    def test_switch_syncs_skills(self, paths, existing_config, skill_sources, monkeypatch):
+        """switch 后 opencode/skills/ 的 symlinks 匹配目标 profile。"""
+        from opencode_profiles.skills import write_skills_yml
+
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        skills_dir = paths.base_dir / "skills"
+        skills_dir.mkdir()
+        import os
+
+        os.symlink(skill_sources / "rtk", skills_dir / "rtk")
+        ensure_initialized(paths)  # default scans rtk
+        # work 只保留 mavenbuild，移除 rtk
+        write_skills_yml(paths, "default", ["rtk"])
+        create_empty(paths, "work")  # work inherits rtk from scan
+        from opencode_profiles.skills import add_skill, remove_skill
+
+        add_skill(paths, "work", "mavenbuild")
+        remove_skill(paths, "work", "rtk")
+        switch(paths, "work")
+        assert (skills_dir / "mavenbuild").is_symlink()
+        assert not (skills_dir / "rtk").exists()
+
 
 # --- init ---
 
