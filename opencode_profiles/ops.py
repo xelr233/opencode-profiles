@@ -99,23 +99,26 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
     """从当前激活的 profile 创建新 profile。"""
     ensure_initialized(paths)
 
-    # Read source config BEFORE removing the profile directory,
-    # because they may be the same file when overwriting the active profile.
     current_config = paths.config_file
-    if current_config.is_symlink():
-        target = current_config.resolve()
-        source_content = target.read_text()
-    else:
+    if not current_config.is_symlink():
         raise RuntimeError("config_file is not a symlink after init")
+    target = current_config.resolve()
 
     profile_dir = paths.profile_dir(name)
     if profile_dir.exists():
+        # 先复制到临时位置（保持元数据），再 rmtree，再 move 回来——
+        # 因为当覆盖当前激活的 profile 时，源和目标是同一个文件，
+        # 必须先保存内容再删除目录。
+        tmp_path = paths.base_dir / f".opencode.json.tmp.{name}"
+        shutil.copy2(target, tmp_path)
         shutil.rmtree(profile_dir)
-
-    profile_dir.mkdir(parents=True)
-    paths.profile_skills(name).mkdir(exist_ok=True)
-
-    paths.profile_config(name).write_text(source_content)
+        profile_dir.mkdir(parents=True)
+        paths.profile_skills(name).mkdir(exist_ok=True)
+        shutil.move(tmp_path, paths.profile_config(name))
+    else:
+        profile_dir.mkdir(parents=True)
+        paths.profile_skills(name).mkdir(exist_ok=True)
+        shutil.copy2(target, paths.profile_config(name))
 
     active = get_active(paths)
     if active is not None:

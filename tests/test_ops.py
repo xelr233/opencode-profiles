@@ -368,7 +368,9 @@ class TestCreateOverwriteExisting:
         create_empty(paths, "work")
         assert paths.profile_config("work").read_text() == "{}"
 
-    def test_rm_rf_then_create_default(self, paths, existing_config, skill_sources, monkeypatch):
+    def test_rm_rf_then_create_default(
+        self, paths, existing_config, skill_sources, sample_config, monkeypatch
+    ):
         """rm -rf * 后 -c default 应成功创建。"""
         monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
         ensure_initialized(paths)
@@ -383,6 +385,9 @@ class TestCreateOverwriteExisting:
         assert paths.profile_config("default").exists()
         assert paths.config_file.is_symlink()
         assert paths.config_file.exists()
+        # 验证内容保留
+        content = json.loads(paths.profile_config("default").read_text())
+        assert content == sample_config
 
 
 class TestDanglingSymlinkRecovery:
