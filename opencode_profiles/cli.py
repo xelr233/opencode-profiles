@@ -22,11 +22,21 @@ paths = OpenCodePaths()
 @click.option("-l", "--list", "list_flag", is_flag=True, help="列出所有 profile")
 @click.option("--from-current", is_flag=True, help="从当前配置导入 provider（配合 -e 使用）")
 @click.option("--from-profile", type=str, help="从指定 profile 导入 provider（配合 -e 使用）")
-@click.option("--add-skill", "add_skill_name", type=str, help="Add a skill to a profile (requires --profile)")
-@click.option("--remove-skill", "remove_skill_name", type=str, help="Remove a skill from a profile (requires --profile)")
+@click.option("--add-skill", "add_skill_name", type=str, help="Add a skill to a profile")
+@click.option("--remove-skill", "remove_skill_name", type=str, help="Remove a skill from a profile")
 @click.option("--profile", type=str, help="Target profile for --add-skill/--remove-skill")
-def main(backup_flag, create, empty, switch_name, list_flag, from_current, from_profile,
-         add_skill_name, remove_skill_name, profile):
+def main(
+    backup_flag,
+    create,
+    empty,
+    switch_name,
+    list_flag,
+    from_current,
+    from_profile,
+    add_skill_name,
+    remove_skill_name,
+    profile,
+):
     """opencode-profiles — 多配置管理工具。"""
     if from_current and from_profile:
         raise click.ClickException("--from-current and --from-profile are mutually exclusive")
