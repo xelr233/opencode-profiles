@@ -199,23 +199,7 @@ def create_empty(paths: OpenCodePaths, name: str, source: str | None = None) -> 
     else:
         paths.profile_config(name).write_text(json.dumps({"provider": providers}, indent=2))
 
-    if source is not None:
-        if source == "current":
-            active = get_active(paths)
-            if active is None:
-                # Still write skills.yml before returning
-                current = scan_current_skills(paths)
-                write_skills_yml(paths, name, current)
-                return
-            src_tui = paths.profile_tui_config(active)
-        else:
-            src_tui = paths.profile_tui_config(source)
-        if src_tui.exists():
-            shutil.copy2(src_tui, paths.profile_tui_config(name))
-
-    # Write skills.yml for new profile
-    current = scan_current_skills(paths)
-    write_skills_yml(paths, name, current)
+    # 仅导入 provider，不导入 skills 或 tui.json
 
 
 def switch(paths: OpenCodePaths, name: str) -> None:

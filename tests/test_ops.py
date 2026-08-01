@@ -290,17 +290,25 @@ class TestCreateEmptyWithSource:
         with pytest.raises(ValueError, match="no providers"):
             create_empty(paths, "work", source="no_provider")
 
-    def test_create_empty_with_tui_from_current(self, paths, existing_config, existing_tui_config):
-        """从当前配置导入时，tui.json 也被复制。"""
-        ensure_initialized(paths)
-        create_empty(paths, "work", source="current")
-        assert paths.profile_tui_config("work").exists()
-
-    def test_create_empty_without_tui_from_current(self, paths, existing_config):
-        """当前配置无 tui.json 时不创建。"""
+    def test_create_empty_from_current_no_tui(self, paths, existing_config, existing_tui_config):
+        """从当前配置导入 provider 时，不复制 tui.json。"""
         ensure_initialized(paths)
         create_empty(paths, "work", source="current")
         assert not paths.profile_tui_config("work").exists()
+
+    def test_create_empty_from_current_no_skills(
+        self, paths, existing_config, skill_sources, monkeypatch
+    ):
+        """从当前配置导入 provider 时，不导入 skills。"""
+        import os
+
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        skills_dir = paths.base_dir / "skills"
+        skills_dir.mkdir()
+        os.symlink(skill_sources / "rtk", skills_dir / "rtk")
+        ensure_initialized(paths)
+        create_empty(paths, "work", source="current")
+        assert read_skills_yml(paths, "work") == []
 
     def test_create_empty_backward_compatible(self, paths, existing_config):
         """不传 source 时行为不变（写入 {}）。"""
