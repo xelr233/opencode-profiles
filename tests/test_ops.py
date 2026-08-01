@@ -186,13 +186,6 @@ def test_create_empty(paths, existing_config):
     assert content == {}
 
 
-def test_create_empty_raises_if_exists(paths, existing_config):
-    ensure_initialized(paths)
-    create_empty(paths, "empty")
-    with pytest.raises(FileExistsError):
-        create_empty(paths, "empty")
-
-
 def test_create_creates_skills_dir(paths, existing_config):
     ensure_initialized(paths)
     create_from_current(paths, "work")
@@ -345,8 +338,6 @@ class TestCreateOverwriteExisting:
         self, paths, existing_config, skill_sources, monkeypatch
     ):
         """profile 已存在时被覆盖重建。"""
-        import os
-
         monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
         ensure_initialized(paths)
         # 先创建一个 work profile
@@ -361,6 +352,21 @@ class TestCreateOverwriteExisting:
         create_from_current(paths, "work")
         assert paths.profile_config("work").exists()
         assert paths.profile_config("work").read_text() != original_config
+
+    def test_create_empty_overwrites_existing(
+        self, paths, existing_config, skill_sources, monkeypatch
+    ):
+        """create_empty 覆盖已有 profile。"""
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        ensure_initialized(paths)
+        # 先创建 work
+        create_empty(paths, "work")
+        assert paths.profile_config("work").read_text() == "{}"
+        # 修改 work 内容
+        paths.profile_config("work").write_text('{"modified": true}')
+        # 再次 create empty work，应覆盖
+        create_empty(paths, "work")
+        assert paths.profile_config("work").read_text() == "{}"
 
 
 class TestDanglingSymlinkRecovery:

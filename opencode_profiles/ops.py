@@ -162,7 +162,7 @@ def create_empty(paths: OpenCodePaths, name: str, source: str | None = None) -> 
 
     profile_dir = paths.profile_dir(name)
     if profile_dir.exists():
-        raise FileExistsError(f"Profile '{name}' already exists")
+        shutil.rmtree(profile_dir)
 
     providers = _load_providers(paths, source) if source is not None else None
 
