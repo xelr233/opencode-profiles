@@ -25,14 +25,18 @@ uv run pytest -v
 uv run pytest tests/test_ops.py -v
 uv run pytest tests/test_cli.py::TestEmptyWithProviderImport -v
 
-# Type check (no config section in pyproject — mypy uses defaults)
-uv run mypy opencode_profiles/
+# Lint & format check
+uv run ruff check .
+uv run ruff format --check .
+
+# Type check
+uv run ty check opencode_profiles/
 
 # Build for distribution
 uv build
 ```
 
-No linter or formatter is configured in `pyproject.toml` — only `pytest` is a dev dependency.
+`ruff` and `ty` are configured in `pyproject.toml`.
 
 ## Testing
 

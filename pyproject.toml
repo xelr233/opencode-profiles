@@ -16,4 +16,13 @@ opencode-profiles = "opencode_profiles.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.16.0",
+    "ty>=0.0.63",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]

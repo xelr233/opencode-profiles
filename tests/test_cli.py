@@ -1,6 +1,8 @@
 import json
+
 import pytest
 from click.testing import CliRunner
+
 from opencode_profiles.cli import main
 from opencode_profiles.paths import OpenCodePaths
 
@@ -22,6 +24,7 @@ def cli_paths(tmp_path):
 def test_list_command(runner, cli_paths, monkeypatch):
     monkeypatch.setattr("opencode_profiles.cli.paths", cli_paths)
     from opencode_profiles.ops import ensure_initialized
+
     ensure_initialized(cli_paths)
     result = runner.invoke(main, ["-l"])
     assert result.exit_code == 0
@@ -64,6 +67,7 @@ class TestEmptyWithProviderImport:
         """CLI: -e work --from-current"""
         monkeypatch.setattr("opencode_profiles.cli.paths", paths)
         from click.testing import CliRunner
+
         runner = CliRunner()
         result = runner.invoke(main, ["-e", "work", "--from-current"])
         assert result.exit_code == 0
@@ -73,11 +77,13 @@ class TestEmptyWithProviderImport:
 
     def test_empty_from_profile(self, paths, existing_config, sample_config, monkeypatch):
         """CLI: -e work --from-profile personal"""
-        from opencode_profiles.ops import ensure_initialized, create_from_current
+        from opencode_profiles.ops import create_from_current, ensure_initialized
+
         ensure_initialized(paths)
         create_from_current(paths, "personal")
         monkeypatch.setattr("opencode_profiles.cli.paths", paths)
         from click.testing import CliRunner
+
         runner = CliRunner()
         result = runner.invoke(main, ["-e", "work", "--from-profile", "personal"])
         assert result.exit_code == 0
@@ -89,6 +95,7 @@ class TestEmptyWithProviderImport:
         """--from-current 无 -e 时报错。"""
         monkeypatch.setattr("opencode_profiles.cli.paths", paths)
         from click.testing import CliRunner
+
         runner = CliRunner()
         result = runner.invoke(main, ["--from-current"])
         assert result.exit_code != 0
@@ -98,6 +105,7 @@ class TestEmptyWithProviderImport:
         """--from-profile 无 -e 时报错。"""
         monkeypatch.setattr("opencode_profiles.cli.paths", paths)
         from click.testing import CliRunner
+
         runner = CliRunner()
         result = runner.invoke(main, ["--from-profile", "personal"])
         assert result.exit_code != 0
@@ -107,6 +115,7 @@ class TestEmptyWithProviderImport:
         """--from-current 和 --from-profile 同时传报错。"""
         monkeypatch.setattr("opencode_profiles.cli.paths", paths)
         from click.testing import CliRunner
+
         runner = CliRunner()
         result = runner.invoke(main, ["-e", "work", "--from-current", "--from-profile", "x"])
         assert result.exit_code != 0
@@ -115,6 +124,7 @@ class TestEmptyWithProviderImport:
     def test_empty_from_current_no_provider(self, paths, monkeypatch):
         """源配置无 provider 时 CLI 报错。"""
         from opencode_profiles.ops import ensure_initialized
+
         ensure_initialized(paths)
         # 创建一个无 provider 的 profile
         no_prov_dir = paths.profile_dir("no_prov")
@@ -126,9 +136,11 @@ class TestEmptyWithProviderImport:
         if cfg.is_symlink() or cfg.exists():
             cfg.unlink()
         import os
+
         os.symlink(paths.relative_target("no_prov"), cfg)
         monkeypatch.setattr("opencode_profiles.cli.paths", paths)
         from click.testing import CliRunner
+
         runner = CliRunner()
         result = runner.invoke(main, ["-e", "work", "--from-current"])
         assert result.exit_code != 0

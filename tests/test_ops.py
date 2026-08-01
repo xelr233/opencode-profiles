@@ -1,5 +1,7 @@
 import json
+
 import pytest
+
 from opencode_profiles.ops import (
     backup,
     create_empty,
@@ -10,8 +12,8 @@ from opencode_profiles.ops import (
     switch,
 )
 
-
 # --- init ---
+
 
 def test_init_creates_profiles_dir(paths, existing_config):
     ensure_initialized(paths)
@@ -70,6 +72,7 @@ def test_init_tui_json_already_symlink(paths, existing_config, existing_tui_conf
 
 # --- backup ---
 
+
 def test_backup_creates_backup_dir(paths, existing_config):
     ensure_initialized(paths)
     name = backup(paths)
@@ -103,6 +106,7 @@ def test_backup_without_tui_json(paths, existing_config):
 
 
 # --- create ---
+
 
 def test_create_from_current(paths, existing_config, sample_config):
     ensure_initialized(paths)
@@ -154,6 +158,7 @@ def test_create_creates_skills_dir(paths, existing_config):
 
 # --- switch ---
 
+
 def test_switch_updates_symlink(paths, existing_config):
     ensure_initialized(paths)
     create_empty(paths, "work")
@@ -186,6 +191,7 @@ def test_switch_to_profile_without_tui(paths, existing_config, existing_tui_conf
 
 # --- list ---
 
+
 def test_list_profiles(paths, existing_config):
     ensure_initialized(paths)
     create_empty(paths, "work")
@@ -201,6 +207,7 @@ def test_list_profiles_empty(paths):
 
 
 # --- active ---
+
 
 def test_get_active(paths, existing_config):
     ensure_initialized(paths)

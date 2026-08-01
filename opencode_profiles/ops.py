@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 from datetime import datetime
+
 from opencode_profiles.paths import OpenCodePaths
 
 
@@ -86,9 +87,11 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
     else:
         raise RuntimeError("config_file is not a symlink after init")
 
-    current_tui = paths.profile_tui_config(get_active(paths))
-    if current_tui.exists():
-        shutil.copy2(current_tui, paths.profile_tui_config(name))
+    active = get_active(paths)
+    if active is not None:
+        current_tui = paths.profile_tui_config(active)
+        if current_tui.exists():
+            shutil.copy2(current_tui, paths.profile_tui_config(name))
 
 
 def _load_providers(paths: OpenCodePaths, source: str) -> dict:
@@ -131,10 +134,7 @@ def create_empty(paths: OpenCodePaths, name: str, source: str | None = None) -> 
     if profile_dir.exists():
         raise FileExistsError(f"Profile '{name}' already exists")
 
-    if source is not None:
-        providers = _load_providers(paths, source)
-    else:
-        providers = None
+    providers = _load_providers(paths, source) if source is not None else None
 
     profile_dir.mkdir(parents=True)
     paths.profile_skills(name).mkdir(exist_ok=True)
@@ -142,13 +142,14 @@ def create_empty(paths: OpenCodePaths, name: str, source: str | None = None) -> 
     if providers is None:
         paths.profile_config(name).write_text("{}")
     else:
-        paths.profile_config(name).write_text(
-            json.dumps({"provider": providers}, indent=2)
-        )
+        paths.profile_config(name).write_text(json.dumps({"provider": providers}, indent=2))
 
     if source is not None:
         if source == "current":
-            src_tui = paths.profile_tui_config(get_active(paths))
+            active = get_active(paths)
+            if active is None:
+                return
+            src_tui = paths.profile_tui_config(active)
         else:
             src_tui = paths.profile_tui_config(source)
         if src_tui.exists():
@@ -162,9 +163,7 @@ def switch(paths: OpenCodePaths, name: str) -> None:
     target = paths.profile_config(name)
     if not target.exists():
         available = list_profiles(paths)
-        raise FileNotFoundError(
-            f"Profile '{name}' not found. Available: {available}"
-        )
+        raise FileNotFoundError(f"Profile '{name}' not found. Available: {available}")
 
     config = paths.config_file
     config.parent.mkdir(parents=True, exist_ok=True)

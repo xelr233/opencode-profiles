@@ -78,8 +78,12 @@ opencode-profiles -b
 # 运行测试
 uv run pytest -v
 
-# 类型检查（如有）
-uv run mypy opencode_profiles/
+# 代码风格与格式检查
+uv run ruff check .
+uv run ruff format --check .
+
+# 类型检查
+uv run ty check opencode_profiles/
 ```
 
 ## 技术栈

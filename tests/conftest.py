@@ -1,6 +1,7 @@
 import json
+
 import pytest
-from pathlib import Path
+
 from opencode_profiles.paths import OpenCodePaths
 
 
@@ -27,10 +28,10 @@ def sample_config():
             "test": {
                 "name": "Test",
                 "npm": "@ai-sdk/openai-compatible",
-                "options": {"apiKey": "test-key", "baseURL": "https://test.example.com/v1"}
+                "options": {"apiKey": "test-key", "baseURL": "https://test.example.com/v1"},
             }
         },
-        "shell": "bash"
+        "shell": "bash",
     }
 
 

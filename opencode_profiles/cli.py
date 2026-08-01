@@ -10,7 +10,6 @@ from opencode_profiles.ops import (
 )
 from opencode_profiles.paths import OpenCodePaths
 
-
 paths = OpenCodePaths()
 
 
@@ -29,7 +28,9 @@ def main(backup_flag, create, empty, switch_name, list_flag, from_current, from_
     if (from_current or from_profile) and not empty:
         raise click.ClickException("--from-current/--from-profile can only be used with -e")
     if from_profile == "current":
-        raise click.ClickException("'current' is a reserved name and cannot be used as --from-profile value")
+        raise click.ClickException(
+            "'current' is a reserved name and cannot be used as --from-profile value"
+        )
 
     if backup_flag:
         name = backup(paths)
@@ -39,7 +40,7 @@ def main(backup_flag, create, empty, switch_name, list_flag, from_current, from_
             create_from_current(paths, create)
             click.echo(f"Created profile '{create}' from current config")
         except FileExistsError as e:
-            raise click.ClickException(str(e))
+            raise click.ClickException(str(e)) from e
     elif empty:
         try:
             if from_current:
@@ -52,17 +53,17 @@ def main(backup_flag, create, empty, switch_name, list_flag, from_current, from_
                 create_empty(paths, empty)
                 click.echo(f"Created empty profile '{empty}'")
         except FileExistsError as e:
-            raise click.ClickException(str(e))
+            raise click.ClickException(str(e)) from e
         except FileNotFoundError as e:
-            raise click.ClickException(str(e))
+            raise click.ClickException(str(e)) from e
         except ValueError as e:
-            raise click.ClickException(str(e))
+            raise click.ClickException(str(e)) from e
     elif switch_name:
         try:
             switch(paths, switch_name)
             click.echo(f"Switched to '{switch_name}'")
         except FileNotFoundError as e:
-            raise click.ClickException(str(e))
+            raise click.ClickException(str(e)) from e
     elif list_flag:
         profiles = list_profiles(paths)
         active = get_active(paths)
