@@ -101,7 +101,7 @@ def create_from_current(paths: OpenCodePaths, name: str) -> None:
 
     profile_dir = paths.profile_dir(name)
     if profile_dir.exists():
-        raise FileExistsError(f"Profile '{name}' already exists")
+        shutil.rmtree(profile_dir)
 
     profile_dir.mkdir(parents=True)
     paths.profile_skills(name).mkdir(exist_ok=True)

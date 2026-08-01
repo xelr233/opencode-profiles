@@ -166,13 +166,6 @@ def test_create_from_current(paths, existing_config, sample_config):
     assert content == sample_config
 
 
-def test_create_from_current_raises_if_exists(paths, existing_config):
-    ensure_initialized(paths)
-    create_from_current(paths, "work")
-    with pytest.raises(FileExistsError):
-        create_from_current(paths, "work")
-
-
 def test_create_from_current_with_tui(paths, existing_config, existing_tui_config):
     ensure_initialized(paths)
     create_from_current(paths, "work")
@@ -343,6 +336,31 @@ class TestCreateEmptyWithSource:
         ensure_initialized(paths)
         assert paths.profile_skills_yml("default").exists()
         assert read_skills_yml(paths, "default") == ["rtk"]
+
+
+class TestCreateOverwriteExisting:
+    """测试 create 命令覆盖已有 profile。"""
+
+    def test_create_from_current_overwrites_existing(
+        self, paths, existing_config, skill_sources, monkeypatch
+    ):
+        """profile 已存在时被覆盖重建。"""
+        import os
+
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        ensure_initialized(paths)
+        # 先创建一个 work profile
+        create_from_current(paths, "work")
+        original_config = paths.profile_config("work").read_text()
+        # 修改当前配置
+        current = paths.config_file.resolve()
+        new_content = json.loads(current.read_text())
+        new_content["provider"]["new_provider"] = {"name": "New"}
+        current.write_text(json.dumps(new_content, indent=2))
+        # 再次 create work，应覆盖
+        create_from_current(paths, "work")
+        assert paths.profile_config("work").exists()
+        assert paths.profile_config("work").read_text() != original_config
 
 
 class TestDanglingSymlinkRecovery:
