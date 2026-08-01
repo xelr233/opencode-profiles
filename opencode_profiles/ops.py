@@ -11,18 +11,24 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
     """确保 opencode 配置目录已初始化。
 
     如果 opencode.json 不是 symlink，将其内容存入 default profile 并替换为 symlink。
-    如果已经是 symlink，不做任何操作。
+    如果已经是有效 symlink（目标存在），不做任何操作。
+    如果 symlink 悬空（目标不存在），清理后重新初始化。
     """
     paths.profiles_dir.mkdir(parents=True, exist_ok=True)
 
     config = paths.config_file
 
-    if config.is_symlink():
+    # Valid symlink: target exists
+    if config.is_symlink() and config.exists():
         # Ensure default profile has skills.yml even on existing setups
         if not paths.profile_skills_yml("default").exists():
             current = scan_current_skills(paths)
             write_skills_yml(paths, "default", current)
         return
+
+    # Clean up dangling symlink
+    if config.is_symlink():
+        config.unlink()
 
     default_dir = paths.profile_dir("default")
     default_dir.mkdir(parents=True, exist_ok=True)
@@ -38,11 +44,21 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
         shutil.copy2(config, default_config)
         config.unlink()
     else:
-        default_config.write_text("{}")
+        # Config doesn't exist (dangling symlink removed or fresh install)
+        # Restore from backup if available
+        backup_path = paths.base_dir / "opencode.json.bak"
+        if backup_path.exists():
+            shutil.copy2(backup_path, default_config)
+        else:
+            default_config.write_text("{}")
 
     os.symlink(paths.relative_target("default"), config)
 
+    # Handle tui.json (also check for dangling symlink)
     tui_config = paths.tui_config_file
+    if tui_config.is_symlink() and not tui_config.exists():
+        tui_config.unlink()
+
     if tui_config.exists() and not tui_config.is_symlink():
         shutil.copy2(tui_config, default_tui_config)
         tui_config.unlink()

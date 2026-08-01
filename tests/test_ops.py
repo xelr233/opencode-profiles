@@ -1,4 +1,7 @@
 import json
+import os
+import shutil
+from pathlib import Path
 
 import pytest
 
@@ -31,7 +34,6 @@ class TestSkillsIntegration:
         monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
         skills_dir = paths.base_dir / "skills"
         skills_dir.mkdir()
-        import os
 
         os.symlink(skill_sources / "rtk", skills_dir / "rtk")
         ensure_initialized(paths)
@@ -45,7 +47,6 @@ class TestSkillsIntegration:
         monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
         skills_dir = paths.base_dir / "skills"
         skills_dir.mkdir()
-        import os
 
         os.symlink(skill_sources / "rtk", skills_dir / "rtk")
         ensure_initialized(paths)  # default scans rtk
@@ -326,7 +327,6 @@ class TestCreateEmptyWithSource:
         self, paths, existing_config, skill_sources, monkeypatch
     ):
         """存量用户（opencode.json 已是 symlink）升级后首次运行也会创建 skills.yml。"""
-        import os
 
         monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
         # 模拟存量用户的旧版本状态：已有 symlink + skills，但无 skills.yml
@@ -343,3 +343,62 @@ class TestCreateEmptyWithSource:
         ensure_initialized(paths)
         assert paths.profile_skills_yml("default").exists()
         assert read_skills_yml(paths, "default") == ["rtk"]
+
+
+class TestDanglingSymlinkRecovery:
+    """测试悬空 symlink 的恢复逻辑。"""
+
+    def test_dangling_opencode_symlink_restores_from_bak(self, paths, existing_config):
+        """opencode.json 悬空 symlink 时，从 .bak 恢复创建 default profile。"""
+
+        ensure_initialized(paths)
+        # 模拟用户 rm -rf profiles/* 后 symlink 悬空
+        profiles_dir = paths.profiles_dir
+        for item in profiles_dir.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+        # opencode.json 现在是悬空 symlink
+        config = paths.config_file
+        assert config.is_symlink()
+        assert not config.exists()
+        # .bak 文件仍在
+        bak = paths.base_dir / "opencode.json.bak"
+        assert bak.exists()
+        # 重新初始化应恢复
+        ensure_initialized(paths)
+        default_config = paths.profile_config("default")
+        assert default_config.exists()
+        assert config.is_symlink()
+        assert config.exists()
+
+    def test_dangling_tui_symlink_cleaned_up(self, paths, existing_config, existing_tui_config):
+        """tui.json 悬空 symlink 时被清理，不阻塞初始化。"""
+
+        ensure_initialized(paths)
+        # 删除 profiles 目录使 symlink 悬空
+        profiles_dir = paths.profiles_dir
+        for item in profiles_dir.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+        tui_config = paths.tui_config_file
+        assert tui_config.is_symlink()
+        assert not tui_config.exists()
+        # 初始化不应报错
+        ensure_initialized(paths)
+        # tui symlink 应该被清理（因为目标不存在）
+        assert not tui_config.exists()
+
+    def test_no_bak_creates_empty_config(self, paths):
+        """无 .bak 文件时，悬空 symlink 恢复后创建空配置。"""
+
+        # 创建悬空 symlink（无任何配置文件）
+        config = paths.config_file
+        config.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(Path("profiles") / "default" / "opencode.json", config)
+        assert config.is_symlink()
+        assert not config.exists()
+        # 初始化应创建空配置的 default profile
+        ensure_initialized(paths)
+        default_config = paths.profile_config("default")
+        assert default_config.exists()
+        assert default_config.read_text() == "{}"
