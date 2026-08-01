@@ -23,3 +23,15 @@ dist/
 
 # uv lock file (auto-generated)
 # uv.lock
+
+# Test / linter caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
