@@ -321,3 +321,25 @@ class TestCreateEmptyWithSource:
         create_empty(paths, "empty")
         content = json.loads(paths.profile_config("empty").read_text())
         assert content == {}
+
+    def test_ensure_initialized_existing_setup_creates_skills_yml(
+        self, paths, existing_config, skill_sources, monkeypatch
+    ):
+        """存量用户（opencode.json 已是 symlink）升级后首次运行也会创建 skills.yml。"""
+        import os
+
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        # 模拟存量用户的旧版本状态：已有 symlink + skills，但无 skills.yml
+        ensure_initialized(paths)  # 旧版本首次初始化，创建 default profile
+        # 删除 skills.yml 模拟旧版本没有它
+        yml = paths.profile_skills_yml("default")
+        if yml.exists():
+            yml.unlink()
+        # 添加 skills symlink（用户已有的）
+        skills_dir = paths.base_dir / "skills"
+        skills_dir.mkdir(exist_ok=True)
+        os.symlink(skill_sources / "rtk", skills_dir / "rtk")
+        # 存量用户升级后再次调用 ensure_initialized
+        ensure_initialized(paths)
+        assert paths.profile_skills_yml("default").exists()
+        assert read_skills_yml(paths, "default") == ["rtk"]

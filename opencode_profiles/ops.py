@@ -18,6 +18,10 @@ def ensure_initialized(paths: OpenCodePaths) -> None:
     config = paths.config_file
 
     if config.is_symlink():
+        # Ensure default profile has skills.yml even on existing setups
+        if not paths.profile_skills_yml("default").exists():
+            current = scan_current_skills(paths)
+            write_skills_yml(paths, "default", current)
         return
 
     default_dir = paths.profile_dir("default")
