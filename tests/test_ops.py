@@ -166,13 +166,6 @@ def test_create_from_current(paths, existing_config, sample_config):
     assert content == sample_config
 
 
-def test_create_from_current_raises_if_exists(paths, existing_config):
-    ensure_initialized(paths)
-    create_from_current(paths, "work")
-    with pytest.raises(FileExistsError):
-        create_from_current(paths, "work")
-
-
 def test_create_from_current_with_tui(paths, existing_config, existing_tui_config):
     ensure_initialized(paths)
     create_from_current(paths, "work")
@@ -191,13 +184,6 @@ def test_create_empty(paths, existing_config):
     assert "empty" in list_profiles(paths)
     content = json.loads(paths.profile_config("empty").read_text())
     assert content == {}
-
-
-def test_create_empty_raises_if_exists(paths, existing_config):
-    ensure_initialized(paths)
-    create_empty(paths, "empty")
-    with pytest.raises(FileExistsError):
-        create_empty(paths, "empty")
 
 
 def test_create_creates_skills_dir(paths, existing_config):
@@ -343,6 +329,65 @@ class TestCreateEmptyWithSource:
         ensure_initialized(paths)
         assert paths.profile_skills_yml("default").exists()
         assert read_skills_yml(paths, "default") == ["rtk"]
+
+
+class TestCreateOverwriteExisting:
+    """测试 create 命令覆盖已有 profile。"""
+
+    def test_create_from_current_overwrites_existing(
+        self, paths, existing_config, skill_sources, monkeypatch
+    ):
+        """profile 已存在时被覆盖重建。"""
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        ensure_initialized(paths)
+        # 先创建一个 work profile
+        create_from_current(paths, "work")
+        original_config = paths.profile_config("work").read_text()
+        # 修改当前配置
+        current = paths.config_file.resolve()
+        new_content = json.loads(current.read_text())
+        new_content["provider"]["new_provider"] = {"name": "New"}
+        current.write_text(json.dumps(new_content, indent=2))
+        # 再次 create work，应覆盖
+        create_from_current(paths, "work")
+        assert paths.profile_config("work").exists()
+        assert paths.profile_config("work").read_text() != original_config
+
+    def test_create_empty_overwrites_existing(
+        self, paths, existing_config, skill_sources, monkeypatch
+    ):
+        """create_empty 覆盖已有 profile。"""
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        ensure_initialized(paths)
+        # 先创建 work
+        create_empty(paths, "work")
+        assert paths.profile_config("work").read_text() == "{}"
+        # 修改 work 内容
+        paths.profile_config("work").write_text('{"modified": true}')
+        # 再次 create empty work，应覆盖
+        create_empty(paths, "work")
+        assert paths.profile_config("work").read_text() == "{}"
+
+    def test_rm_rf_then_create_default(
+        self, paths, existing_config, skill_sources, sample_config, monkeypatch
+    ):
+        """rm -rf * 后 -c default 应成功创建。"""
+        monkeypatch.setattr(paths, "_skill_sources_dir", skill_sources)
+        ensure_initialized(paths)
+        # 模拟 rm -rf profiles/*
+        profiles_dir = paths.profiles_dir
+        for item in profiles_dir.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+        # 此时 symlink 悬空，ensure_initialized 会恢复 default
+        # 但 -c default 应覆盖它
+        create_from_current(paths, "default")
+        assert paths.profile_config("default").exists()
+        assert paths.config_file.is_symlink()
+        assert paths.config_file.exists()
+        # 验证内容保留
+        content = json.loads(paths.profile_config("default").read_text())
+        assert content == sample_config
 
 
 class TestDanglingSymlinkRecovery:
