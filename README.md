@@ -1,6 +1,6 @@
 # opencode-profiles
 
-管理多个 opencode 配置 profile 的 CLI 工具。
+管理多个 opencode 配置 profile 的 CLI 工具，支持 per-profile 技能管理。
 
 ## 安装
 
@@ -55,22 +55,39 @@ opencode-profiles -s work
 opencode-profiles -b
 ```
 
+### 为 profile 添加技能
+
+```bash
+opencode-profiles --add-skill brainstorming --profile work
+```
+
+### 从 profile 移除技能
+
+```bash
+opencode-profiles --remove-skill brainstorming --profile work
+```
+
 ## 目录结构
 
 ```
 ~/.config/opencode/
 ├── opencode.json -> profiles/personal/opencode.json  (symlink)
+├── skills/                                      (技能 symlinks)
+│   ├── brainstorming -> ~/.cc-switch/skills/brainstorming
+│   └── rtk -> ~/.cc-switch/skills/rtk
 └── profiles/
     ├── personal/
     │   ├── opencode.json
-    │   └── skills/              (预留)
+    │   └── skills.yml                         (技能列表)
     └── work/
         ├── opencode.json
-        └── skills/              (预留)
+        └── skills.yml
 ```
 
 - `~/.config/opencode/opencode.json` 始终是指向当前激活 profile 的符号链接
-- 每个 profile 是独立目录，包含 `opencode.json` 和预留的 `skills/` 子目录
+- 每个 profile 的 `skills.yml` 记录激活的技能列表
+- 切换 profile 时，`~/.config/opencode/skills/` 下的 symlinks 会同步更新
+- 技能源目录默认位于 `~/.cc-switch/skills/`
 
 ## 开发
 

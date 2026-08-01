@@ -2,15 +2,16 @@
 
 ## Project
 
-CLI tool to manage multiple [OpenCode](https://opencode.ai) configuration profiles via symlink switching. Create, backup, switch, and list profiles; import providers from existing configs when creating new ones. Installed as `opencode-profiles` (entry point → `opencode_profiles.cli:main`).
+CLI tool to manage multiple [OpenCode](https://opencode.ai) configuration profiles via symlink switching. Create, backup, switch, and list profiles; import providers from existing configs when creating new ones. Manages per-profile skills via `skills.yml` and syncs symlinks in `~/.config/opencode/skills/`. Installed as `opencode-profiles` (entry point → `opencode_profiles.cli:main`).
 
 ## Architecture
 
 The core invariant: `~/.config/opencode/opencode.json` **must always be a symlink** pointing to `profiles/<name>/opencode.json` after initialization. Everything else follows from this.
 
-- `opencode_profiles/paths.py` — `OpenCodePaths` class. All path resolution lives here. `relative_target()` returns the symlink target for a profile.
-- `opencode_profiles/ops.py` — Every function calls `ensure_initialized()` first, which enforces the symlink invariant by migrating a bare `opencode.json` into a `default` profile. Don't skip this call when adding new operations.
-- `opencode_profiles/cli.py` — Click CLI. Holds a module-level `paths = OpenCodePaths()` singleton that tests monkeypatch.
+- `opencode_profiles/paths.py` — `OpenCodePaths` class. All path resolution lives here. `relative_target()` returns the symlink target for a profile. `skill_sources_dir` (default `~/.cc-switch/skills/`) configures where skill source directories live.
+- `opencode_profiles/ops.py` — Every function calls `ensure_initialized()` first, which enforces the symlink invariant by migrating a bare `opencode.json` into a `default` profile. Don't skip this call when adding new operations. Also writes `skills.yml` for new/existing profiles.
+- `opencode_profiles/skills.py` — Skills management: read/write `skills.yml`, scan current symlinks, compute diff, sync symlinks, add/remove skills. `sync_skills()` validates all target sources exist before modifying anything, then updates `cc-switch.db`.
+- `opencode_profiles/cli.py` — Click CLI. Holds a module-level `paths = OpenCodePaths()` singleton that tests monkeypatch. Supports `--add-skill` and `--remove-skill` with `--profile`.
 
 ## Commands
 
