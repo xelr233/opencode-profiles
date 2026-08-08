@@ -43,6 +43,24 @@ opencode-profiles -e minimal
 opencode-profiles -s work
 ```
 
+### 显示配置差异
+
+```bash
+# 比较当前激活 profile 与 work
+opencode-profiles -d work
+
+# 比较两个 profile
+opencode-profiles -d work personal
+```
+
+输出按 provider / mcp / plugin / skill 四个维度分组，`-` 表示移除，`+` 表示新增。
+
+切换 profile 时也会先显示差异：
+
+```bash
+opencode-profiles -s work
+```
+
 ### 备份当前配置
 
 ```bash
