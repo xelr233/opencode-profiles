@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"opencode-profiles/internal/diff"
 	"opencode-profiles/internal/paths"
 	"opencode-profiles/internal/skills"
 )
@@ -387,9 +388,19 @@ func CreateEmpty(p *paths.Paths, name, source string) error {
 }
 
 // SwitchDB 切换 symlink 指向目标 profile 并同步技能（dbPath 注入用）。
-func SwitchDB(p *paths.Paths, name, dbPath string) error {
+// out 接收切换前后差异输出。
+func SwitchDB(p *paths.Paths, name, dbPath string, out io.Writer) error {
 	if err := EnsureInitialized(p); err != nil {
 		return err
+	}
+
+	from := GetActive(p)
+	if from != "" {
+		if result, err := diff.Diff(p, from, name); err != nil {
+			return err
+		} else {
+			diff.Render(out, result)
+		}
 	}
 
 	target := p.ProfileConfig(name)
@@ -447,9 +458,9 @@ func SwitchDB(p *paths.Paths, name, dbPath string) error {
 	return skills.SyncSkills(p, name, dbPath)
 }
 
-// Switch 切换 symlink 指向目标 profile（使用默认 db 路径）。
+// Switch 切换 symlink 指向目标 profile（使用默认 db 路径，丢弃 diff 输出）。
 func Switch(p *paths.Paths, name string) error {
-	return SwitchDB(p, name, "")
+	return SwitchDB(p, name, "", io.Discard)
 }
 
 // ListProfiles 列出所有 profile 名称。

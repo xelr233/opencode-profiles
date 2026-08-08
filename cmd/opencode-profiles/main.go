@@ -106,7 +106,7 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 			fmt.Fprintf(stdout, "Created empty profile '%s'\n", emptyName)
 		}
 	} else if switchName != "" {
-		if err := ops.SwitchDB(p, switchName, dbPath); err != nil {
+		if err := ops.SwitchDB(p, switchName, dbPath, stdout); err != nil {
 			fmt.Fprintf(stderr, "Error: %s\n", err)
 			return 1
 		}

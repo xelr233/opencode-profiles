@@ -1,7 +1,9 @@
 package ops
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -270,13 +272,13 @@ func TestSwitchAndActive(t *testing.T) {
 	if err := CreateEmpty(p, "work", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := SwitchDB(p, "work", db); err != nil {
+	if err := SwitchDB(p, "work", db, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if GetActive(p) != "work" {
 		t.Fatalf("active = %q", GetActive(p))
 	}
-	if err := SwitchDB(p, "nonexistent", db); err == nil {
+	if err := SwitchDB(p, "nonexistent", db, io.Discard); err == nil {
 		t.Fatal("expected not found error")
 	}
 }
@@ -295,7 +297,7 @@ func TestSwitchWithTUI(t *testing.T) {
 	if err := CreateFromCurrent(p, "work"); err != nil {
 		t.Fatal(err)
 	}
-	if err := SwitchDB(p, "work", filepath.Join(t.TempDir(), "nonexistent.db")); err != nil {
+	if err := SwitchDB(p, "work", filepath.Join(t.TempDir(), "nonexistent.db"), io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if !isSymlink(p.TUIConfigFile()) {
@@ -520,7 +522,7 @@ func TestSwitchSyncsSkills(t *testing.T) {
 	if err := skills.RemoveSkill(p, "work", "rtk"); err != nil {
 		t.Fatal(err)
 	}
-	if err := SwitchDB(p, "work", db); err != nil {
+	if err := SwitchDB(p, "work", db, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Lstat(filepath.Join(skillsDir, "mavenbuild")); err != nil {
@@ -528,6 +530,50 @@ func TestSwitchSyncsSkills(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(skillsDir, "rtk")); !os.IsNotExist(err) {
 		t.Fatal("rtk should be removed")
+	}
+}
+
+func TestSwitchPrintsDiff(t *testing.T) {
+	p, db := newEnv(t)
+	if err := EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	writeJSON(t, p.ProfileConfig("work"), map[string]any{"provider": map[string]any{"deepseek": map[string]any{}}})
+	if err := skills.AddSkill(p, "work", "mavenbuild"); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := SwitchDB(p, "work", db, &buf); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "Diff: default -> work") {
+		t.Fatalf("missing diff header: %q", got)
+	}
+	if !strings.Contains(got, "[provider]") || !strings.Contains(got, "  + deepseek") {
+		t.Fatalf("provider section missing: %q", got)
+	}
+	if !strings.Contains(got, "[skill]") || !strings.Contains(got, "  + mavenbuild") {
+		t.Fatalf("skill section missing: %q", got)
+	}
+}
+
+func TestSwitchCompatibleNoOut(t *testing.T) {
+	p, _ := newEnv(t)
+	if err := EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := Switch(p, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if GetActive(p) != "work" {
+		t.Fatalf("active = %q", GetActive(p))
 	}
 }
 
