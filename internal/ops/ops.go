@@ -394,15 +394,6 @@ func SwitchDB(p *paths.Paths, name, dbPath string, out io.Writer) error {
 		return err
 	}
 
-	from := GetActive(p)
-	if from != "" {
-		if result, err := diff.Diff(p, from, name); err != nil {
-			return err
-		} else {
-			diff.Render(out, result)
-		}
-	}
-
 	target := p.ProfileConfig(name)
 	if _, err := os.Stat(target); err != nil {
 		if os.IsNotExist(err) {
@@ -410,6 +401,15 @@ func SwitchDB(p *paths.Paths, name, dbPath string, out io.Writer) error {
 			return fmt.Errorf("Profile '%s' not found. Available: %s", name, pythonList(available))
 		}
 		return err
+	}
+
+	from := GetActive(p)
+	if from != "" {
+		if result, err := diff.Diff(p, from, name); err != nil {
+			return err
+		} else {
+			diff.Render(out, result)
+		}
 	}
 
 	config := p.ConfigFile()
