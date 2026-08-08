@@ -95,6 +95,80 @@ func TestSwitchCommand(t *testing.T) {
 	if res.code != 0 || !strings.Contains(res.stdout, "Switched to 'work'") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", res.code, res.stdout, res.stderr)
 	}
+	// 同内容 profile：应打印 No differences 行
+	if !strings.Contains(res.stdout, "No differences between 'default' and 'work'") {
+		t.Fatalf("missing no-diff line: %q", res.stdout)
+	}
+}
+
+func TestDiffCommand(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	if err := ops.EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, p.ProfileConfig("work"), `{"provider": {"deepseek": {}}}`)
+	res := invoke(t, p, db, out, errOut, "-d", "work")
+	if res.code != 0 {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "Diff: default -> work") {
+		t.Fatalf("stdout=%q", res.stdout)
+	}
+	if !strings.Contains(res.stdout, "[provider]") || !strings.Contains(res.stdout, "  + deepseek") {
+		t.Fatalf("stdout=%q", res.stdout)
+	}
+}
+
+func TestDiffTwoArgs(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	if err := ops.EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, p.ProfileConfig("work"), `{"mcp": {"srv": {}}}`)
+	if err := ops.CreateEmpty(p, "personal", ""); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, p.ProfileConfig("personal"), `{"mcp": {"srv": {}, "extra": {}}}`)
+	res := invoke(t, p, db, out, errOut, "-d", "work", "personal")
+	if res.code != 0 {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "Diff: work -> personal") {
+		t.Fatalf("stdout=%q", res.stdout)
+	}
+	if !strings.Contains(res.stdout, "  + extra") {
+		t.Fatalf("stdout=%q", res.stdout)
+	}
+}
+
+func TestDiffNoArgs(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	res := invoke(t, p, db, out, errOut, "-d")
+	if res.code == 0 {
+		t.Fatalf("expected failure")
+	}
+}
+
+func TestDiffTooManyArgs(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	res := invoke(t, p, db, out, errOut, "-d", "a", "b", "c")
+	if res.code == 0 || !strings.Contains(res.stderr, "-d") {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+}
+
+func TestDiffMutuallyExclusive(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	res := invoke(t, p, db, out, errOut, "-d", "work", "-s", "work")
+	if res.code == 0 || !strings.Contains(res.stderr, "cannot be combined") {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
 }
 
 func TestBackupCommand(t *testing.T) {

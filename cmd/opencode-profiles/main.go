@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
+	"opencode-profiles/internal/diff"
 	"opencode-profiles/internal/ops"
 	"opencode-profiles/internal/paths"
 	"opencode-profiles/internal/skills"
@@ -23,6 +25,7 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 
 	var (
 		backupFlag      bool
+		diffFlag        bool
 		createName      string
 		emptyName       string
 		switchName      string
@@ -35,6 +38,8 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 	)
 	fs.BoolVar(&backupFlag, "b", false, "备份当前配置")
 	fs.BoolVar(&backupFlag, "backup", false, "备份当前配置")
+	fs.BoolVar(&diffFlag, "d", false, "显示当前与目标 profile 的配置差异（可加 1-2 个 profile 名）")
+	fs.BoolVar(&diffFlag, "diff", false, "显示配置差异")
 	fs.StringVar(&createName, "c", "", "从当前配置创建新 profile")
 	fs.StringVar(&createName, "create", "", "从当前配置创建新 profile")
 	fs.StringVar(&emptyName, "e", "", "创建空 profile")
@@ -52,9 +57,29 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() > 0 {
+	if !diffFlag && fs.NArg() > 0 {
 		fmt.Fprintln(stderr, "Unexpected argument: "+fs.Arg(0))
 		return 2
+	}
+	if diffFlag {
+		if backupFlag || createName != "" || emptyName != "" || switchName != "" || addSkillName != "" || removeSkillName != "" || listFlag {
+			fmt.Fprintln(stderr, "Error: -d cannot be combined with other commands")
+			return 1
+		}
+		for _, arg := range fs.Args() {
+			if strings.HasPrefix(arg, "-") {
+				fmt.Fprintln(stderr, "Error: -d cannot be combined with other commands")
+				return 1
+			}
+		}
+		if fs.NArg() == 0 {
+			fmt.Fprintln(stderr, "Error: -d requires at least one profile name")
+			return 1
+		}
+		if fs.NArg() > 2 {
+			fmt.Fprintln(stderr, "Error: -d accepts at most two profile names")
+			return 1
+		}
 	}
 
 	if fromCurrent && fromProfile != "" {
@@ -105,6 +130,24 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 		default:
 			fmt.Fprintf(stdout, "Created empty profile '%s'\n", emptyName)
 		}
+	} else if diffFlag {
+		var a, b string
+		if fs.NArg() == 1 {
+			a = ops.GetActive(p)
+			if a == "" {
+				fmt.Fprintln(stderr, "Error: no active profile to diff against")
+				return 1
+			}
+			b = fs.Arg(0)
+		} else {
+			a, b = fs.Arg(0), fs.Arg(1)
+		}
+		result, err := diff.Diff(p, a, b)
+		if err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		diff.Render(stdout, result)
 	} else if switchName != "" {
 		if err := ops.SwitchDB(p, switchName, dbPath, stdout); err != nil {
 			fmt.Fprintf(stderr, "Error: %s\n", err)
