@@ -1,8 +1,10 @@
 package diff
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"opencode-profiles/internal/paths"
@@ -86,6 +88,47 @@ func TestDiffMissingProfile(t *testing.T) {
 	mkProfile(t, p, "a", `{}`, nil)
 	if _, err := Diff(p, "a", "nope"); err == nil {
 		t.Fatal("expected error for missing profile")
+	}
+}
+
+func TestRenderSections(t *testing.T) {
+	var buf bytes.Buffer
+	r := &Result{
+		A: "default", B: "work",
+		Providers: Change{Added: []string{"deepseek"}, Removed: []string{"meituan"}},
+		MCP:       Change{Added: []string{"codegraph"}},
+		Skills:    Change{},
+	}
+	Render(&buf, r)
+	got := buf.String()
+
+	if !strings.Contains(got, "Diff: default -> work") {
+		t.Fatalf("missing header: %q", got)
+	}
+	if !strings.Contains(got, "[provider]") {
+		t.Fatalf("missing provider section: %q", got)
+	}
+	if !strings.Contains(got, "  - meituan") || !strings.Contains(got, "  + deepseek") {
+		t.Fatalf("provider changes missing: %q", got)
+	}
+	if !strings.Contains(got, "[mcp]") || !strings.Contains(got, "  + codegraph") {
+		t.Fatalf("mcp section missing: %q", got)
+	}
+	if strings.Contains(got, "[skill]") {
+		t.Fatalf("skill section should be omitted when empty: %q", got)
+	}
+	// 顺序：Removed 在前，Added 在后
+	if idx := strings.Index(got, "- meituan"); idx > strings.Index(got, "+ deepseek") {
+		t.Fatalf("removed should print before added: %q", got)
+	}
+}
+
+func TestRenderNoDiff(t *testing.T) {
+	var buf bytes.Buffer
+	r := &Result{A: "default", B: "work"}
+	Render(&buf, r)
+	if got := buf.String(); got != "No differences between 'default' and 'work'\n" {
+		t.Fatalf("got %q", got)
 	}
 }
 

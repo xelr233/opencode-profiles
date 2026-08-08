@@ -3,6 +3,7 @@ package diff
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 
@@ -118,4 +119,37 @@ func setDiff(current, target []string) Change {
 	sort.Strings(c.Added)
 	sort.Strings(c.Removed)
 	return c
+}
+
+// Render 将 Result 分节打印到 w。无变化的维度省略；
+// 全部无差异时输出 No differences 行。
+func Render(w io.Writer, r *Result) {
+	if r.Empty() {
+		fmt.Fprintf(w, "No differences between '%s' and '%s'\n", r.A, r.B)
+		return
+	}
+	fmt.Fprintf(w, "Diff: %s -> %s\n", r.A, r.B)
+	renderSection(w, "provider", r.Providers)
+	renderSection(w, "mcp", r.MCP)
+	renderSection(w, "plugin", r.Plugins)
+	renderSection(w, "skill", r.Skills)
+}
+
+// Empty 报告四维度是否均无差异。
+func (r *Result) Empty() bool {
+	empty := func(c Change) bool { return len(c.Added) == 0 && len(c.Removed) == 0 }
+	return empty(r.Providers) && empty(r.MCP) && empty(r.Plugins) && empty(r.Skills)
+}
+
+func renderSection(w io.Writer, name string, c Change) {
+	if len(c.Added) == 0 && len(c.Removed) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "\n[%s]\n", name)
+	for _, s := range c.Removed {
+		fmt.Fprintf(w, "  - %s\n", s)
+	}
+	for _, s := range c.Added {
+		fmt.Fprintf(w, "  + %s\n", s)
+	}
 }
