@@ -2,51 +2,48 @@
 
 ## Project
 
-CLI tool to manage multiple [OpenCode](https://opencode.ai) configuration profiles via symlink switching. Create, backup, switch, and list profiles; import providers from existing configs when creating new ones. Manages per-profile skills via `skills.yml` and syncs symlinks in `~/.config/opencode/skills/`. Installed as `opencode-profiles` (entry point → `opencode_profiles.cli:main`).
+CLI tool to manage multiple [OpenCode](https://opencode.ai) configuration profiles via symlink switching. Create, backup, switch, and list profiles; import providers from existing configs when creating new ones. Manages per-profile skills via `skills.yml` and syncs symlinks in `~/.config/opencode/skills/`. Built with Go as a single static binary named `opencode-profiles` (entry point → `cmd/opencode-profiles`).
 
 ## Architecture
 
 The core invariant: `~/.config/opencode/opencode.json` **must always be a symlink** pointing to `profiles/<name>/opencode.json` after initialization. Everything else follows from this.
 
-- `opencode_profiles/paths.py` — `OpenCodePaths` class. All path resolution lives here. `relative_target()` returns the symlink target for a profile. `skill_sources_dir` (default `~/.cc-switch/skills/`) configures where skill source directories live.
-- `opencode_profiles/ops.py` — Every function calls `ensure_initialized()` first, which enforces the symlink invariant by migrating a bare `opencode.json` into a `default` profile. Don't skip this call when adding new operations. Also writes `skills.yml` for new/existing profiles.
-- `opencode_profiles/skills.py` — Skills management: read/write `skills.yml`, scan current symlinks, compute diff, sync symlinks, add/remove skills. `sync_skills()` validates all target sources exist before modifying anything, then updates `cc-switch.db`.
-- `opencode_profiles/cli.py` — Click CLI. Holds a module-level `paths = OpenCodePaths()` singleton that tests monkeypatch. Supports `--add-skill` and `--remove-skill` with `--profile`.
+- `internal/paths/paths.go` — `Paths` struct. All path resolution lives here. `New(baseDir, skillSourcesDir)` with empty values falling back to `~/.config/opencode` and `~/.cc-switch/skills/`. `RelativeTarget()` returns the symlink target for a profile.
+- `internal/ops/ops.go` — Every function calls `EnsureInitialized()` first, which enforces the symlink invariant by migrating a bare `opencode.json` into a `default` profile. Don't skip this call when adding new operations. Also writes `skills.yml` for new/existing profiles. `SwitchDB(p, name, dbPath)` takes an injectable db path for tests; `Switch` uses the default `~/.cc-switch/cc-switch.db`.
+- `internal/skills/skills.go` — Skills management: read/write `skills.yml` (yaml.v3), scan current symlinks, compute diff, sync symlinks, add/remove skills. `SyncSkills()` validates all target sources exist before modifying anything, then updates `cc-switch.db` (modernc.org/sqlite, pure Go). `UpdateDB()` silently ignores missing db / sqlite errors.
+- `cmd/opencode-profiles/main.go` — stdlib `flag` CLI. `run(args, stdout, stderr, paths, dbPath)` returns an exit code and is fully injectable for tests; `main()` calls it with defaults.
 
 ## Commands
 
 ```bash
-# Dev install
-uv pip install -e .
+# Build
+go build -trimpath -ldflags="-s -w" -o opencode-profiles ./cmd/opencode-profiles
 
 # Run all tests
-uv run pytest -v
+go test ./...
 
-# Run a single test file / test
-uv run pytest tests/test_ops.py -v
-uv run pytest tests/test_cli.py::TestEmptyWithProviderImport -v
+# Run a single package's tests
+go test ./internal/ops/ -v
 
 # Lint & format check
-uv run ruff check .
-uv run ruff format --check .
+go vet ./...
+gofmt -l .
 
-# Type check
-uv run ty check opencode_profiles/
-
-# Build for distribution
-uv build
+# Cross-compile
+GOOS=linux GOARCH=arm64 go build ./cmd/opencode-profiles
+GOOS=darwin GOARCH=arm64 go build ./cmd/opencode-profiles
+GOOS=windows GOARCH=amd64 go build ./cmd/opencode-profiles
 ```
-
-`ruff` and `ty` are configured in `pyproject.toml`.
 
 ## Testing
 
-- Tests inject an isolated `OpenCodePaths` via `tmp_path` + monkeypatch of `opencode_profiles.cli.paths` (see `tests/conftest.py::cli_paths`).
-- The `CliRunner` from `click.testing` invokes the CLI; assert on `result.exit_code` and `result.output`.
-- Each test gets a fresh temp dir under `tmp_path / ".config" / "opencode"`.
+- Tests construct an isolated `Paths` via `t.TempDir()` and pass it directly into ops functions — no global state or monkeypatching.
+- CLI tests invoke `run(args, &buf, &errBuf, paths, dbPath)` and assert on exit code and buffer contents.
+- DB writes are isolated by passing a nonexistent `dbPath` (never touches the real `~/.cc-switch/cc-switch.db`).
+- The Go implementation's behavioral equivalence to the original Python version was verified with a temporary comparison harness during the migration (`feat: port CLI to Go` through `chore: remove Python implementation` commits).
 
 ## Conventions
 
 - Commit messages follow Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`).
-- Python 3.11+ (see `.python-version`).
-- Dependencies managed with `uv`; `uv.lock` is committed.
+- Go 1.25+ (see `go.mod`).
+- Dependencies managed with `go.mod`/`go.sum`; only two external deps (`gopkg.in/yaml.v3`, `modernc.org/sqlite`).

@@ -1,0 +1,155 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io"
+	"os"
+
+	"opencode-profiles/internal/ops"
+	"opencode-profiles/internal/paths"
+	"opencode-profiles/internal/skills"
+)
+
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, paths.New("", ""), ""))
+}
+
+// run 解析参数并执行命令。返回退出码；stdout/stderr 与 p 可注入供测试使用。
+// dbPath 供测试注入（空字符串使用默认 ~/.cc-switch/cc-switch.db）。
+func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string) int {
+	fs := flag.NewFlagSet("opencode-profiles", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
+	var (
+		backupFlag      bool
+		createName      string
+		emptyName       string
+		switchName      string
+		listFlag        bool
+		fromCurrent     bool
+		fromProfile     string
+		addSkillName    string
+		removeSkillName string
+		profileName     string
+	)
+	fs.BoolVar(&backupFlag, "b", false, "备份当前配置")
+	fs.BoolVar(&backupFlag, "backup", false, "备份当前配置")
+	fs.StringVar(&createName, "c", "", "从当前配置创建新 profile")
+	fs.StringVar(&createName, "create", "", "从当前配置创建新 profile")
+	fs.StringVar(&emptyName, "e", "", "创建空 profile")
+	fs.StringVar(&emptyName, "empty", "", "创建空 profile")
+	fs.StringVar(&switchName, "s", "", "切换到指定 profile")
+	fs.StringVar(&switchName, "switch", "", "切换到指定 profile")
+	fs.BoolVar(&listFlag, "l", false, "列出所有 profile")
+	fs.BoolVar(&listFlag, "list", false, "列出所有 profile")
+	fs.BoolVar(&fromCurrent, "from-current", false, "从当前配置导入 provider（配合 -e 使用）")
+	fs.StringVar(&fromProfile, "from-profile", "", "从指定 profile 导入 provider（配合 -e 使用）")
+	fs.StringVar(&addSkillName, "add-skill", "", "Add a skill to a profile")
+	fs.StringVar(&removeSkillName, "remove-skill", "", "Remove a skill from a profile")
+	fs.StringVar(&profileName, "profile", "", "Target profile for --add-skill/--remove-skill")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintln(stderr, "Unexpected argument: "+fs.Arg(0))
+		return 2
+	}
+
+	if fromCurrent && fromProfile != "" {
+		fmt.Fprintln(stderr, "Error: --from-current and --from-profile are mutually exclusive")
+		return 1
+	}
+	if (fromCurrent || fromProfile != "") && emptyName == "" {
+		fmt.Fprintln(stderr, "Error: --from-current/--from-profile can only be used with -e")
+		return 1
+	}
+	if fromProfile == "current" {
+		fmt.Fprintln(stderr, "Error: 'current' is a reserved name and cannot be used as --from-profile value")
+		return 1
+	}
+
+	if backupFlag {
+		name, err := ops.Backup(p)
+		if err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Backed up to '%s'\n", name)
+	} else if createName != "" {
+		if err := ops.CreateFromCurrent(p, createName); err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Created profile '%s' from current config\n", createName)
+	} else if emptyName != "" {
+		var err error
+		switch {
+		case fromCurrent:
+			err = ops.CreateEmpty(p, emptyName, "current")
+		case fromProfile != "":
+			err = ops.CreateEmpty(p, emptyName, fromProfile)
+		default:
+			err = ops.CreateEmpty(p, emptyName, "")
+		}
+		if err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		switch {
+		case fromCurrent:
+			fmt.Fprintf(stdout, "Created profile '%s' with providers from current config\n", emptyName)
+		case fromProfile != "":
+			fmt.Fprintf(stdout, "Created profile '%s' with providers from '%s'\n", emptyName, fromProfile)
+		default:
+			fmt.Fprintf(stdout, "Created empty profile '%s'\n", emptyName)
+		}
+	} else if switchName != "" {
+		if err := ops.SwitchDB(p, switchName, dbPath); err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Switched to '%s'\n", switchName)
+	} else if addSkillName != "" {
+		if profileName == "" {
+			fmt.Fprintln(stderr, "Error: --add-skill requires --profile")
+			return 1
+		}
+		if err := skills.AddSkill(p, profileName, addSkillName); err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Added skill '%s' to profile '%s'\n", addSkillName, profileName)
+	} else if removeSkillName != "" {
+		if profileName == "" {
+			fmt.Fprintln(stderr, "Error: --remove-skill requires --profile")
+			return 1
+		}
+		if err := skills.RemoveSkill(p, profileName, removeSkillName); err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Removed skill '%s' from profile '%s'\n", removeSkillName, profileName)
+	} else if listFlag {
+		profiles := ops.ListProfiles(p)
+		active := ops.GetActive(p)
+		if len(profiles) == 0 {
+			fmt.Fprintln(stdout, "No profiles found.")
+			return 0
+		}
+		for _, name := range profiles {
+			if name == active {
+				fmt.Fprintf(stdout, "  %s *\n", name)
+			} else {
+				fmt.Fprintf(stdout, "  %s\n", name)
+			}
+		}
+		if active != "" {
+			fmt.Fprintf(stdout, "\nActive: %s\n", active)
+		}
+	} else {
+		fmt.Fprintln(stdout, "Use --help for available commands.")
+	}
+	return 0
+}

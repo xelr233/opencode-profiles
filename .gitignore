@@ -1,13 +1,11 @@
-# Python-generated files
+# Go build artifacts
+/opencode-profiles
+*.test
+*.out
+
+# Python cache (legacy, pre-migration)
 __pycache__/
 *.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
 
 # CodeGraph local index
 .codegraph/
@@ -17,17 +15,6 @@ wheels/
 
 # superpowers SDD progress/temp files
 .superpowers/
-
-# Build artifacts
-dist/
-
-# uv lock file (auto-generated)
-# uv.lock
-
-# Test / linter caches
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
 
 # Editor / OS
 .vscode/

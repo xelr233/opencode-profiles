@@ -1,26 +1,20 @@
 # opencode-profiles
 
-管理多个 opencode 配置 profile 的 CLI 工具，支持 per-profile 技能管理。
+管理多个 opencode 配置 profile 的 CLI 工具，支持 per-profile 技能管理。用 Go 实现，编译为单个静态二进制，无运行时依赖。
 
 ## 安装
 
-### 开发模式
+### 从源码构建
 
 ```bash
-uv pip install -e .
+go build -trimpath -ldflags="-s -w" -o opencode-profiles ./cmd/opencode-profiles
+sudo install -m 0755 opencode-profiles /usr/local/bin/
 ```
 
-### 全局安装（推荐）
+### 直接运行
 
 ```bash
-uv tool install --from dist/opencode_profiles-0.1.0-py3-none-any.whl opencode-profiles
-```
-
-或从源码构建后安装：
-
-```bash
-uv build
-uv tool install --from dist/opencode_profiles-0.1.0-py3-none-any.whl opencode-profiles
+go run ./cmd/opencode-profiles -h
 ```
 
 ## 使用方法
@@ -93,19 +87,18 @@ opencode-profiles --remove-skill brainstorming --profile work
 
 ```bash
 # 运行测试
-uv run pytest -v
+go test ./...
 
-# 代码风格与格式检查
-uv run ruff check .
-uv run ruff format --check .
+# 代码风格与静态检查
+go fmt ./...
+go vet ./...
 
-# 类型检查
-uv run ty check opencode_profiles/
+# 构建
+go build -trimpath -ldflags="-s -w" -o opencode-profiles ./cmd/opencode-profiles
 ```
 
 ## 技术栈
 
-- Python 3.11+
-- click — CLI 框架
-- uv — 包管理
-- pytest — 测试
+- Go 1.25+
+- gopkg.in/yaml.v3 — YAML 解析
+- modernc.org/sqlite — 纯 Go SQLite 驱动（cc-switch.db 集成）
