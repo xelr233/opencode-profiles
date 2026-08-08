@@ -58,7 +58,7 @@ Flow (in order):
 1. `EnsureInitialized`
 2. `from := GetActive(p)` — resolve current profile before switching
 3. Validate target profile exists (existing behavior) — this runs *before* diff so a missing target keeps the friendly `Profile 'x' not found. Available: ...` error
-4. `result, err := diff.Diff(p, from, name)`; on error, return it
+4. `result, err := diff.Diff(p, from, name)` — diff is informational: on error, print a `Warning: could not diff profiles: ...` line to `out` and continue switching (never block a switch because a config is malformed — otherwise a corrupted active profile could not be escaped via `-s`)
 5. `diff.Render(out, result)` — print changes to the injected writer
 6. Perform symlink switch + tui.json + skills sync (existing logic unchanged)
 
@@ -126,6 +126,7 @@ Diff: default -> work
 | Missing `skills.yml` | Treated as empty list |
 | No differences | Prints `No differences between ...` |
 | Switch to profile with no diff | Prints no-diff line, still switches |
+| `-s` target config is malformed JSON/YAML | Prints `Warning: could not diff profiles: ...`, still switches |
 
 ## Testing
 

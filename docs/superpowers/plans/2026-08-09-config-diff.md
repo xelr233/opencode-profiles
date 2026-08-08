@@ -479,9 +479,42 @@ func TestSwitchCompatibleNoOut(t *testing.T) {
 		t.Fatalf("active = %q", GetActive(p))
 	}
 }
+
+func TestSwitchWarnAndContinue(t *testing.T) {
+	p, db := newEnv(t)
+	if err := EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	// 目标 profile 的 opencode.json 是非法 JSON：diff 应打印 Warning，切换仍继续
+	writeJSONFileRaw(t, p.ProfileConfig("work"), "{ not json")
+	var buf bytes.Buffer
+	if err := SwitchDB(p, "work", db, &buf); err != nil {
+		t.Fatalf("switch should continue despite malformed config: %v", err)
+	}
+	if !strings.Contains(buf.String(), "Warning: could not diff profiles") {
+		t.Fatalf("missing warning: %q", buf.String())
+	}
+	if GetActive(p) != "work" {
+		t.Fatalf("active = %q", GetActive(p))
+	}
+}
 ```
 
 在测试文件 import 中加入 `bytes`。
+
+注意：`TestSwitchWarnAndContinue` 需要原样写文件的辅助函数（现有 `writeJSON` 会先 Marshal 再写，无法写出非法 JSON）。增加：
+
+```go
+func writeJSONFileRaw(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+```
 
 - [ ] **步骤 2：运行测试验证失败**
 
@@ -521,8 +554,9 @@ func SwitchDB(p *paths.Paths, name, dbPath string, out io.Writer) error {
 
 	from := GetActive(p)
 	if from != "" {
-		if result, err := diff.Diff(p, from, name); err != nil {
-			return err
+		result, err := diff.Diff(p, from, name)
+		if err != nil {
+			fmt.Fprintf(out, "Warning: could not diff profiles: %v\n", err)
 		} else {
 			diff.Render(out, result)
 		}
