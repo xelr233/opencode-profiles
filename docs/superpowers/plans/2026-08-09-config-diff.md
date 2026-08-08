@@ -500,13 +500,22 @@ func TestSwitchCompatibleNoOut(t *testing.T) {
 	"opencode-profiles/internal/diff"
 ```
 
-修改 `SwitchDB` 签名与函数体（在 `EnsureInitialized` 后、`target` 校验前打印 diff）：
+修改 `SwitchDB` 签名与函数体（`EnsureInitialized` 后先校验 target 存在，再打印 diff，最后执行切换）：
 
 ```go
 // SwitchDB 切换 symlink 指向目标 profile 并同步技能（dbPath 注入用）。
 // out 接收切换前后差异输出。
 func SwitchDB(p *paths.Paths, name, dbPath string, out io.Writer) error {
 	if err := EnsureInitialized(p); err != nil {
+		return err
+	}
+
+	target := p.ProfileConfig(name)
+	if _, err := os.Stat(target); err != nil {
+		if os.IsNotExist(err) {
+			available := ListProfiles(p)
+			return fmt.Errorf("Profile '%s' not found. Available: %s", name, pythonList(available))
+		}
 		return err
 	}
 
@@ -517,15 +526,6 @@ func SwitchDB(p *paths.Paths, name, dbPath string, out io.Writer) error {
 		} else {
 			diff.Render(out, result)
 		}
-	}
-
-	target := p.ProfileConfig(name)
-	if _, err := os.Stat(target); err != nil {
-		if os.IsNotExist(err) {
-			available := ListProfiles(p)
-			return fmt.Errorf("Profile '%s' not found. Available: %s", name, pythonList(available))
-		}
-		return err
 	}
 	// ... 其余切换逻辑保持不变（symlink、tui.json、SyncSkills）
 ```

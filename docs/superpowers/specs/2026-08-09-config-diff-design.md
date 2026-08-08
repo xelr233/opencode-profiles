@@ -57,9 +57,9 @@ Flow (in order):
 
 1. `EnsureInitialized`
 2. `from := GetActive(p)` — resolve current profile before switching
-3. `result, err := diff.Diff(p, from, name)`; on error, return it
-4. `diff.Render(out, result)` — print changes to the injected writer
-5. Validate target profile exists (existing behavior)
+3. Validate target profile exists (existing behavior) — this runs *before* diff so a missing target keeps the friendly `Profile 'x' not found. Available: ...` error
+4. `result, err := diff.Diff(p, from, name)`; on error, return it
+5. `diff.Render(out, result)` — print changes to the injected writer
 6. Perform symlink switch + tui.json + skills sync (existing logic unchanged)
 
 `Switch(p, name)` is kept for backwards compatibility:
