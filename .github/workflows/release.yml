@@ -4,6 +4,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write  # required to upload binaries to the release
+
 jobs:
   build:
     name: Build ${{ matrix.os }}-${{ matrix.arch }}
