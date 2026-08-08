@@ -62,7 +62,7 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 		return 2
 	}
 	if diffFlag {
-		if backupFlag || createName != "" || emptyName != "" || switchName != "" || addSkillName != "" || removeSkillName != "" || listFlag {
+		if backupFlag || createName != "" || emptyName != "" || switchName != "" || addSkillName != "" || removeSkillName != "" || listFlag || fromCurrent || fromProfile != "" {
 			fmt.Fprintln(stderr, "Error: -d cannot be combined with other commands")
 			return 1
 		}

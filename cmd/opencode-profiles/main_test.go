@@ -150,15 +150,15 @@ func TestDiffTwoArgs(t *testing.T) {
 func TestDiffNoArgs(t *testing.T) {
 	p, db, out, errOut := newCLIEnv(t)
 	res := invoke(t, p, db, out, errOut, "-d")
-	if res.code == 0 {
-		t.Fatalf("expected failure")
+	if res.code == 0 || !strings.Contains(res.stderr, "requires at least one profile name") {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
 	}
 }
 
 func TestDiffTooManyArgs(t *testing.T) {
 	p, db, out, errOut := newCLIEnv(t)
 	res := invoke(t, p, db, out, errOut, "-d", "a", "b", "c")
-	if res.code == 0 || !strings.Contains(res.stderr, "-d") {
+	if res.code == 0 || !strings.Contains(res.stderr, "accepts at most two profile names") {
 		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
 	}
 }

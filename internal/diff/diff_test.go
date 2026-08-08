@@ -34,6 +34,21 @@ func TestDiffBasic(t *testing.T) {
 	checkChange(t, "skill", r.Skills, []string{"skillB"}, []string{"skillA"})
 }
 
+func TestDiffSortOrder(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "opencode")
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := paths.New(base, filepath.Join(t.TempDir(), "skills"))
+	mkProfile(t, p, "a", `{"provider":{"z":{},"x":{},"shared":{}}}`, nil)
+	mkProfile(t, p, "b", `{"provider":{"y":{},"m":{},"shared":{}}}`, nil)
+	r, err := Diff(p, "a", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkChange(t, "provider", r.Providers, []string{"m", "y"}, []string{"x", "z"})
+}
+
 func TestDiffIdentical(t *testing.T) {
 	base := filepath.Join(t.TempDir(), "opencode")
 	if err := os.MkdirAll(base, 0o755); err != nil {
@@ -117,9 +132,28 @@ func TestRenderSections(t *testing.T) {
 	if strings.Contains(got, "[skill]") {
 		t.Fatalf("skill section should be omitted when empty: %q", got)
 	}
+	if strings.Contains(got, "[plugin]") {
+		t.Fatalf("plugin section should be omitted when empty: %q", got)
+	}
 	// 顺序：Removed 在前，Added 在后
 	if idx := strings.Index(got, "- meituan"); idx > strings.Index(got, "+ deepseek") {
 		t.Fatalf("removed should print before added: %q", got)
+	}
+}
+
+func TestRenderRemovedOnly(t *testing.T) {
+	var buf bytes.Buffer
+	r := &Result{
+		A: "a", B: "b",
+		Plugins: Change{Removed: []string{"x@1"}},
+	}
+	Render(&buf, r)
+	got := buf.String()
+	if !strings.Contains(got, "[plugin]") || !strings.Contains(got, "  - x@1") {
+		t.Fatalf("plugin removed section missing: %q", got)
+	}
+	if strings.Contains(got, "  + ") {
+		t.Fatalf("should not contain added lines: %q", got)
 	}
 }
 

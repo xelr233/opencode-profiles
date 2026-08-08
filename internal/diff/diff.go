@@ -29,6 +29,12 @@ type Result struct {
 // Diff 读取 profile a 与 b 的 opencode.json 与 skills.yml，
 // 返回四维度键/项集合差异。
 func Diff(p *paths.Paths, a, b string) (*Result, error) {
+	if _, err := os.Stat(p.ProfileConfig(a)); err != nil {
+		return nil, fmt.Errorf("profile '%s' not found", a)
+	}
+	if _, err := os.Stat(p.ProfileConfig(b)); err != nil {
+		return nil, fmt.Errorf("profile '%s' not found", b)
+	}
 	cfgA, err := readConfig(p.ProfileConfig(a))
 	if err != nil {
 		return nil, err
@@ -76,7 +82,6 @@ func mapKeys(v any) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
 	return keys
 }
 
@@ -91,7 +96,6 @@ func listItems(v any) []string {
 			out = append(out, s)
 		}
 	}
-	sort.Strings(out)
 	return out
 }
 

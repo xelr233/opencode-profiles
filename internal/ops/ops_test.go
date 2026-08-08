@@ -38,6 +38,13 @@ func writeJSON(t *testing.T, path string, v any) {
 	}
 }
 
+func writeJSONFileRaw(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func readConfig(t *testing.T, path string) map[string]any {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -558,6 +565,27 @@ func TestSwitchPrintsDiff(t *testing.T) {
 	}
 	if !strings.Contains(got, "[skill]") || !strings.Contains(got, "  + mavenbuild") {
 		t.Fatalf("skill section missing: %q", got)
+	}
+}
+
+func TestSwitchWarnAndContinue(t *testing.T) {
+	p, db := newEnv(t)
+	if err := EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFileRaw(t, p.ProfileConfig("work"), "{ not json")
+	var buf bytes.Buffer
+	if err := SwitchDB(p, "work", db, &buf); err != nil {
+		t.Fatalf("switch should continue despite malformed config: %v", err)
+	}
+	if !strings.Contains(buf.String(), "Warning: could not diff profiles") {
+		t.Fatalf("missing warning: %q", buf.String())
+	}
+	if GetActive(p) != "work" {
+		t.Fatalf("active = %q", GetActive(p))
 	}
 }
 

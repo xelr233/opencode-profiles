@@ -405,8 +405,9 @@ func SwitchDB(p *paths.Paths, name, dbPath string, out io.Writer) error {
 
 	from := GetActive(p)
 	if from != "" {
-		if result, err := diff.Diff(p, from, name); err != nil {
-			return err
+		result, err := diff.Diff(p, from, name)
+		if err != nil {
+			fmt.Fprintf(out, "Warning: could not diff profiles: %v\n", err)
 		} else {
 			diff.Render(out, result)
 		}
