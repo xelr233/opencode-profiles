@@ -258,3 +258,18 @@ func TestRollbackOnUninitializedRepo(t *testing.T) {
 		t.Fatal("expected error rolling back uninitialized repo")
 	}
 }
+
+func TestRunErrorIncludesStderr(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	// 在非仓库目录执行 git 命令触发失败，stderr 应透传到错误信息
+	_, _, err := run(p, name, "status", "--porcelain")
+	if err == nil {
+		t.Fatal("expected error running git in non-repo dir")
+	}
+	if !strings.Contains(err.Error(), "not a git repository") {
+		t.Fatalf("expected git stderr in error message, got: %v", err)
+	}
+}

@@ -2,6 +2,7 @@ package git
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,6 +40,9 @@ func run(p *paths.Paths, name string, args ...string) (string, string, error) {
 	cmd.Stderr = &errOut
 	err := cmd.Run()
 	if err != nil {
+		if msg := strings.TrimSpace(errOut.String()); msg != "" {
+			return out.String(), errOut.String(), fmt.Errorf("%s: %s", err, msg)
+		}
 		return out.String(), errOut.String(), err
 	}
 	return out.String(), errOut.String(), nil
