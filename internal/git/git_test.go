@@ -146,6 +146,33 @@ func TestCommitAndLog(t *testing.T) {
 	}
 }
 
+func TestCommitStagesDeletedFile(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	writeProfileFiles(t, p, name, `{"shell":"bash"}`)
+	if err := Init(p, name); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(p.ProfileTUIConfig(name)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(p.ProfileSkillsYML(name)); err != nil {
+		t.Fatal(err)
+	}
+	if err := Commit(p, name, "delete files"); err != nil {
+		t.Fatalf("Commit failed: %v", err)
+	}
+	out, _, err := run(p, name, "ls-files")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "tui.json") || strings.Contains(out, "skills.yml") {
+		t.Fatalf("expected deletions committed, still tracked: %q", out)
+	}
+}
+
 func TestCommitOnUninitializedRepo(t *testing.T) {
 	if !Available() {
 		t.Skip("git not installed")

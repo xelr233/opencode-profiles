@@ -117,9 +117,13 @@ func Commit(p *paths.Paths, name, message string) error {
 	if message == "" {
 		message = "chore: update profile " + name
 	}
-	// 用 os.Stat 过滤出实际存在的被跟踪文件再逐个 add——git 的 --ignore-missing
-	// 仅能与 --dry-run 搭配（git >= 2.43 强制），不能用于此处；tui.json/skills.yml
-	// 可能不存在（如 -e 创建的 profile）。
+	// 先 git add -u 暂存已跟踪文件的修改与删除（带 pathspec 时，对既未跟踪又
+	// 不存在的文件会报 pathspec 错误，因此不加 pathspec——本仓库只跟踪三个
+	// 配置文件与 .gitignore），再对 os.Stat 存在的文件补 add，覆盖 init 之后
+	// 新出现的文件。不用 --ignore-missing：它仅能与 --dry-run 搭配（git >= 2.43 强制）。
+	if _, _, err := run(p, name, "add", "-u"); err != nil {
+		return err
+	}
 	for _, f := range trackedFiles {
 		if _, err := os.Stat(filepath.Join(p.ProfileDir(name), f)); err == nil {
 			if _, _, err := run(p, name, "add", "--", f); err != nil {
