@@ -65,6 +65,9 @@ func Init(p *paths.Paths, name string) error {
 	if IsRepo(p, name) {
 		return errors.New("profile '" + name + "' is already under version control")
 	}
+	if _, err := os.Stat(p.ProfileDir(name)); err != nil {
+		return fmt.Errorf("profile '%s' does not exist; create it first", name)
+	}
 	gitignore := filepath.Join(p.ProfileDir(name), ".gitignore")
 	if _, err := os.Stat(gitignore); os.IsNotExist(err) {
 		if err := os.WriteFile(gitignore, []byte("skills/\n"), 0o644); err != nil {
@@ -137,7 +140,7 @@ func Commit(p *paths.Paths, name, message string) error {
 	return nil
 }
 
-// Log 返回 git log --oneline 输出（空仓库时返回 nil）。
+// Log 返回 git log --oneline 输出（仓库存在但无 commit 时 git log 会报错）。
 func Log(p *paths.Paths, name string) (string, error) {
 	if err := ensureRepo(p, name); err != nil {
 		return "", err
@@ -146,17 +149,21 @@ func Log(p *paths.Paths, name string) (string, error) {
 	return out, err
 }
 
-// isClean 报告 profile 工作区是否有未提交改动。
-func isClean(p *paths.Paths, name string) bool {
+// isClean 报告 profile 工作区是否有未提交改动。status 执行失败时返回真实错误。
+func isClean(p *paths.Paths, name string) (bool, error) {
 	out, _, err := run(p, name, "status", "--porcelain")
-	return err == nil && strings.TrimSpace(out) == ""
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) == "", nil
 }
 
 // trackedAt 返回目标 commit 中实际存在的被跟踪配置文件。
 // 避免对从未被跟踪的文件（如 -e 创建的 profile 缺 tui.json/skills.yml）
 // 执行 checkout 时报 pathspec 错误。
 func trackedAt(p *paths.Paths, name, commit string) ([]string, error) {
-	out, _, err := run(p, name, "ls-tree", "-r", "--name-only", commit, "--", "opencode.json", "tui.json", "skills.yml")
+	args := append([]string{"ls-tree", "-r", "--name-only", commit, "--"}, trackedFiles...)
+	out, _, err := run(p, name, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +182,11 @@ func Rollback(p *paths.Paths, name, commit string) error {
 	if err := ensureRepo(p, name); err != nil {
 		return err
 	}
-	if !isClean(p, name) {
+	clean, err := isClean(p, name)
+	if err != nil {
+		return err
+	}
+	if !clean {
 		return errors.New("working tree has uncommitted changes; commit or stash first")
 	}
 	files, err := trackedAt(p, name, commit)

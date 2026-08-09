@@ -83,6 +83,23 @@ func TestInitCreatesRepoAndFirstCommit(t *testing.T) {
 	}
 }
 
+func TestInitMissingProfileFriendlyError(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	if err := os.RemoveAll(p.ProfileDir(name)); err != nil {
+		t.Fatal(err)
+	}
+	err := Init(p, name)
+	if err == nil {
+		t.Fatal("expected error for missing profile")
+	}
+	if !strings.Contains(err.Error(), "does not exist; create it first") {
+		t.Fatalf("expected friendly error, got %v", err)
+	}
+}
+
 func TestInitRejectsExistingRepo(t *testing.T) {
 	if !Available() {
 		t.Skip("git not installed")
@@ -192,6 +209,20 @@ func TestLogOnUninitializedRepo(t *testing.T) {
 	p, name := makeRepo(t)
 	if _, err := Log(p, name); err == nil {
 		t.Fatal("expected error logging uninitialized repo")
+	}
+}
+
+func TestIsCleanReturnsError(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	clean, err := isClean(p, name)
+	if err == nil {
+		t.Fatal("expected error from isClean in non-repo dir")
+	}
+	if clean {
+		t.Fatal("expected clean=false on error")
 	}
 }
 
