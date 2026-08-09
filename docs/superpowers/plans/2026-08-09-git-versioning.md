@@ -251,8 +251,17 @@ func Init(p *paths.Paths, name string) error {
 	if _, _, err := run(p, name, "init", "-q"); err != nil {
 		return err
 	}
-	// --ignore-missing：tui.json/skills.yml 可能不存在（如 -e 创建的 profile）
-	if _, _, err := run(p, name, "add", "--ignore-missing", "--", "opencode.json", "tui.json", "skills.yml", ".gitignore"); err != nil {
+	// 用 os.Stat 过滤出实际存在的被跟踪文件再 add——git 的 --ignore-missing
+	// 仅能与 --dry-run 搭配（git >= 2.43 强制），不能用于此处；tui.json/skills.yml
+	// 可能不存在（如 -e 创建的 profile）。
+	for _, f := range trackedFiles {
+		if _, err := os.Stat(filepath.Join(p.ProfileDir(name), f)); err == nil {
+			if _, _, err := run(p, name, "add", "--", f); err != nil {
+				return err
+			}
+		}
+	}
+	if _, _, err := run(p, name, "add", "--", ".gitignore"); err != nil {
 		return err
 	}
 	if _, _, err := run(p, name, "commit", "-m", "chore: initial commit for profile "+name); err != nil {
@@ -446,6 +455,36 @@ func TestRollbackRestoresFileKeepsHistory(t *testing.T) {
 	}
 }
 
+func TestRollbackSkipsUntrackedFiles(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	// 只写 opencode.json，模拟 -e 创建的 profile（无 tui.json/skills.yml）
+	if err := os.WriteFile(p.ProfileConfig(name), []byte(`{"shell":"bash"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Init(p, name); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.ProfileConfig(name), []byte(`{"shell":"zsh"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Commit(p, name, "switch shell"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Rollback(p, name, "HEAD~1"); err != nil {
+		t.Fatalf("Rollback failed: %v", err)
+	}
+	data, err := os.ReadFile(p.ProfileConfig(name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"shell":"bash"}` {
+		t.Fatalf("expected restored content, got %q", data)
+	}
+}
+
 func TestRollbackRejectsDirtyWorkingTree(t *testing.T) {
 	if !Available() {
 		t.Skip("git not installed")
@@ -488,7 +527,24 @@ func isClean(p *paths.Paths, name string) bool {
 	return err == nil && strings.TrimSpace(out) == ""
 }
 
-// Rollback 将工作区三个文件恢复到指定 commit，保留提交历史。
+// trackedAt 返回目标 commit 中实际存在的被跟踪配置文件。
+// 避免对从未被跟踪的文件（如 -e 创建的 profile 缺 tui.json/skills.yml）
+// 执行 checkout 时报 pathspec 错误。
+func trackedAt(p *paths.Paths, name, commit string) ([]string, error) {
+	out, _, err := run(p, name, "ls-tree", "-r", "--name-only", commit, "--", "opencode.json", "tui.json", "skills.yml")
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, f := range strings.Split(strings.TrimSpace(out), "\n") {
+		if f != "" {
+			files = append(files, f)
+		}
+	}
+	return files, nil
+}
+
+// Rollback 将工作区被跟踪文件恢复到指定 commit，保留提交历史。
 // 工作区存在未提交改动时直接拒绝。
 func Rollback(p *paths.Paths, name, commit string) error {
 	if err := ensureRepo(p, name); err != nil {
@@ -497,7 +553,14 @@ func Rollback(p *paths.Paths, name, commit string) error {
 	if !isClean(p, name) {
 		return errors.New("working tree has uncommitted changes; commit or stash first")
 	}
-	args := append([]string{"checkout", commit, "--"}, trackedFiles...)
+	files, err := trackedAt(p, name, commit)
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return errors.New("commit '" + commit + "' tracks none of the profile config files")
+	}
+	args := append([]string{"checkout", commit, "--"}, files...)
 	if _, _, err := run(p, name, args...); err != nil {
 		return err
 	}
@@ -508,7 +571,7 @@ func Rollback(p *paths.Paths, name, commit string) error {
 - [ ] **步骤 4：运行测试验证通过**
 
 运行：`go test ./internal/git/ -run TestRollback -v`
-预期：PASS
+预期：PASS，四个测试全部通过（含 `TestRollbackSkipsUntrackedFiles`）
 
 - [ ] **步骤 5：Commit**
 
