@@ -137,3 +137,49 @@ func Log(p *paths.Paths, name string) (string, error) {
 	out, _, err := run(p, name, "log", "--oneline")
 	return out, err
 }
+
+// isClean 报告 profile 工作区是否有未提交改动。
+func isClean(p *paths.Paths, name string) bool {
+	out, _, err := run(p, name, "status", "--porcelain")
+	return err == nil && strings.TrimSpace(out) == ""
+}
+
+// trackedAt 返回目标 commit 中实际存在的被跟踪配置文件。
+// 避免对从未被跟踪的文件（如 -e 创建的 profile 缺 tui.json/skills.yml）
+// 执行 checkout 时报 pathspec 错误。
+func trackedAt(p *paths.Paths, name, commit string) ([]string, error) {
+	out, _, err := run(p, name, "ls-tree", "-r", "--name-only", commit, "--", "opencode.json", "tui.json", "skills.yml")
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, f := range strings.Split(strings.TrimSpace(out), "\n") {
+		if f != "" {
+			files = append(files, f)
+		}
+	}
+	return files, nil
+}
+
+// Rollback 将工作区被跟踪文件恢复到指定 commit，保留提交历史。
+// 工作区存在未提交改动时直接拒绝。
+func Rollback(p *paths.Paths, name, commit string) error {
+	if err := ensureRepo(p, name); err != nil {
+		return err
+	}
+	if !isClean(p, name) {
+		return errors.New("working tree has uncommitted changes; commit or stash first")
+	}
+	files, err := trackedAt(p, name, commit)
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return errors.New("commit '" + commit + "' tracks none of the profile config files")
+	}
+	args := append([]string{"checkout", commit, "--"}, files...)
+	if _, _, err := run(p, name, args...); err != nil {
+		return err
+	}
+	return nil
+}

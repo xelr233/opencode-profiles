@@ -166,3 +166,95 @@ func TestLogOnUninitializedRepo(t *testing.T) {
 		t.Fatal("expected error logging uninitialized repo")
 	}
 }
+
+func TestRollbackRestoresFileKeepsHistory(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	writeProfileFiles(t, p, name, `{"shell":"bash"}`)
+	if err := Init(p, name); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.ProfileConfig(name), []byte(`{"shell":"zsh"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Commit(p, name, "switch shell"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Rollback(p, name, "HEAD~1"); err != nil {
+		t.Fatalf("Rollback failed: %v", err)
+	}
+	data, err := os.ReadFile(p.ProfileConfig(name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"shell":"bash"}` {
+		t.Fatalf("expected restored content, got %q", data)
+	}
+	log, err := Log(p, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(strings.Split(strings.TrimSpace(log), "\n")); n != 2 {
+		t.Fatalf("expected history preserved (2 commits), got %d", n)
+	}
+}
+
+func TestRollbackSkipsUntrackedFiles(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	// 只写 opencode.json，模拟 -e 创建的 profile（无 tui.json/skills.yml）
+	if err := os.WriteFile(p.ProfileConfig(name), []byte(`{"shell":"bash"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Init(p, name); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.ProfileConfig(name), []byte(`{"shell":"zsh"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Commit(p, name, "switch shell"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Rollback(p, name, "HEAD~1"); err != nil {
+		t.Fatalf("Rollback failed: %v", err)
+	}
+	data, err := os.ReadFile(p.ProfileConfig(name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"shell":"bash"}` {
+		t.Fatalf("expected restored content, got %q", data)
+	}
+}
+
+func TestRollbackRejectsDirtyWorkingTree(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	writeProfileFiles(t, p, name, `{"shell":"bash"}`)
+	if err := Init(p, name); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.ProfileConfig(name), []byte(`{"shell":"fish"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Rollback(p, name, "HEAD"); err == nil {
+		t.Fatal("expected error when working tree is dirty")
+	}
+}
+
+func TestRollbackOnUninitializedRepo(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	if err := Rollback(p, name, "HEAD"); err == nil {
+		t.Fatal("expected error rolling back uninitialized repo")
+	}
+}
