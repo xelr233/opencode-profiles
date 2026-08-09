@@ -191,6 +191,30 @@ func TestCommitStagesDeletedFile(t *testing.T) {
 	}
 }
 
+func TestCommitDefaultMessage(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	writeProfileFiles(t, p, name, `{"shell":"bash"}`)
+	if err := Init(p, name); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.ProfileConfig(name), []byte(`{"shell":"zsh"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Commit(p, name, ""); err != nil {
+		t.Fatalf("Commit with default message failed: %v", err)
+	}
+	log, err := Log(p, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(log, "chore: update profile work") {
+		t.Fatalf("expected default commit message, got %q", log)
+	}
+}
+
 func TestCommitOnUninitializedRepo(t *testing.T) {
 	if !Available() {
 		t.Skip("git not installed")
