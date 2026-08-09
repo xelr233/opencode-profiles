@@ -128,13 +128,22 @@ func exportSkillsZip(p *paths.Paths, name, outDir string, warn io.Writer) error 
 			fmt.Fprintf(warn, "Warning: skill source '%s' not found, skipped\n", skill)
 			continue
 		}
-		err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		// 技能源可能是指向目录的 symlink（cc-switch 的实际用法），WalkDir 不跟随，
+		// 先用 EvalSymlinks 解析到真实路径再递归。
+		realSrc, err := filepath.EvalSymlinks(src)
+		if err != nil {
+			return err
+		}
+		err = filepath.WalkDir(realSrc, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			rel, err := filepath.Rel(src, path)
+			rel, err := filepath.Rel(realSrc, path)
 			if err != nil {
 				return err
+			}
+			if rel == "." {
+				return nil
 			}
 			entry := skill + "/" + rel
 			if d.IsDir() {

@@ -173,6 +173,35 @@ func TestExportWithSkills(t *testing.T) {
 	}
 }
 
+func TestExportWithSkillsSymlinkedSource(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	// 技能源目录放在别处，skill_sources 下用 symlink 指向它（cc-switch 的实际用法）
+	real := filepath.Join(t.TempDir(), "brainstorming-real")
+	if err := os.MkdirAll(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(real, "SKILL.md"), []byte("# brainstorming\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := p.SkillSource("brainstorming")
+	if err := os.MkdirAll(p.SkillSourcesDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := Export(p, "work", outDir, true, warn); err != nil {
+		t.Fatal(err)
+	}
+	sk, ok := readZipEntry(t, filepath.Join(outDir, "work-skills.zip"), "brainstorming/SKILL.md")
+	if !ok {
+		t.Fatal("missing brainstorming/SKILL.md")
+	}
+	if !strings.Contains(string(sk), "# brainstorming") {
+		t.Fatalf("bad content: %s", sk)
+	}
+}
+
 func TestExportWithSkillsMissingSourceWarns(t *testing.T) {
 	p, outDir, warn := makeExportEnv(t)
 	makeSkillSource(t, p, "brainstorming")
