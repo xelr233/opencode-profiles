@@ -373,6 +373,69 @@ func TestCreateEmptySourceErrors(t *testing.T) {
 	}
 }
 
+// redirectStderr 将 os.Stderr 重定向到临时文件；返回恢复 os.Stderr 并返回捕获内容
+// 的函数（包内测试串行执行，无并行风险）。
+func redirectStderr(t *testing.T) func() string {
+	t.Helper()
+	old := os.Stderr
+	f, err := os.Create(filepath.Join(t.TempDir(), "stderr.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = f
+	return func() string {
+		os.Stderr = old
+		f.Close()
+		data, err := os.ReadFile(f.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+}
+
+func TestCreateEmptyWarnsGitHistory(t *testing.T) {
+	p, _ := newEnv(t)
+	if err := EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(p.ProfileDir("work"), ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	restore := redirectStderr(t)
+	if err := CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	got := restore()
+	if !strings.Contains(got, "has git history that will be deleted") {
+		t.Fatalf("expected git-history warning, got %q", got)
+	}
+}
+
+func TestCreateFromCurrentWarnsGitHistory(t *testing.T) {
+	p, _ := newEnv(t)
+	if err := EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateFromCurrent(p, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(p.ProfileDir("work"), ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	restore := redirectStderr(t)
+	if err := CreateFromCurrent(p, "work"); err != nil {
+		t.Fatal(err)
+	}
+	got := restore()
+	if !strings.Contains(got, "has git history that will be deleted") {
+		t.Fatalf("expected git-history warning, got %q", got)
+	}
+}
+
 func TestCreateOverwriteExisting(t *testing.T) {
 	p, _ := newEnv(t)
 	if err := EnsureInitialized(p); err != nil {

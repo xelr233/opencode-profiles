@@ -224,6 +224,13 @@ func Backup(p *paths.Paths) (string, error) {
 	return backupName, nil
 }
 
+// warnGitHistory 在覆盖操作会删除 profile 的 .git 时向 stderr 打印警告。
+func warnGitHistory(p *paths.Paths, name string) {
+	if _, err := os.Stat(filepath.Join(p.ProfileDir(name), ".git")); err == nil {
+		fmt.Fprintf(os.Stderr, "Warning: profile '%s' has git history that will be deleted by this overwrite\n", name)
+	}
+}
+
 // CreateFromCurrent 从当前激活的 profile 创建新 profile。
 func CreateFromCurrent(p *paths.Paths, name string) error {
 	if err := EnsureInitialized(p); err != nil {
@@ -251,6 +258,7 @@ func CreateFromCurrent(p *paths.Paths, name string) error {
 
 	profileDir := p.ProfileDir(name)
 	if _, err := os.Stat(profileDir); err == nil {
+		warnGitHistory(p, name)
 		// 先复制到临时位置（保持元数据），再 rmtree，再 move 回来——
 		// 因为当覆盖当前激活的 profile 时，源和目标是同一个文件，
 		// 必须先保存内容再删除目录。
@@ -356,6 +364,7 @@ func CreateEmpty(p *paths.Paths, name, source string) error {
 
 	profileDir := p.ProfileDir(name)
 	if _, err := os.Stat(profileDir); err == nil {
+		warnGitHistory(p, name)
 		if err := os.RemoveAll(profileDir); err != nil {
 			return err
 		}
