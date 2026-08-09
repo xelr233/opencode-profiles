@@ -79,6 +79,26 @@ opencode-profiles --add-skill brainstorming --profile work
 opencode-profiles --remove-skill brainstorming --profile work
 ```
 
+### Profile 版本管理
+
+为 profile 启用 git 版本管理（需系统已安装 git，默认关闭）：
+
+```bash
+# 为 profile 启用版本管理（首次提交）
+opencode-profiles --git-init work
+
+# 提交改动
+opencode-profiles --git-commit work -m "switch to zsh"
+
+# 查看提交历史
+opencode-profiles --git-log work
+
+# 软回滚到历史版本（保留提交历史）
+opencode-profiles --git-rollback work HEAD~1
+```
+
+每个 profile 独立 git 仓库，跟踪 `opencode.json`、`tui.json`、`skills.yml` 三个文件，`skills/` 目录自动排除。回滚前工作区有未提交改动时会拒绝。
+
 ## 目录结构
 
 ```
