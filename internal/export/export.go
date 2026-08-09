@@ -127,17 +127,26 @@ func writeZipBytes(zw *zip.Writer, name string, data []byte) error {
 }
 
 // exportSkillsZip 导出 skills.yml 中引用的技能源为 <name>-skills.zip。缺失源跳过并 warning。
+// 先写临时文件，成功后原子重命名为最终路径；任何错误路径删除临时文件，
+// 避免残留损坏的 zip 被导入时自动关联命中。
 func exportSkillsZip(p *paths.Paths, name, outDir string, warn io.Writer) error {
 	skillsList, err := skills.ReadSkillsYML(p, name)
 	if err != nil {
 		return err
 	}
 	zipPath := filepath.Join(outDir, name+"-skills.zip")
-	f, err := os.Create(zipPath)
+	tmpPath := zipPath + ".tmp"
+	f, err := os.Create(tmpPath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	committed := false
+	defer func() {
+		if !committed {
+			os.Remove(tmpPath)
+		}
+	}()
 	zw := zip.NewWriter(f)
 
 	for _, skill := range skillsList {
@@ -168,6 +177,18 @@ func exportSkillsZip(p *paths.Paths, name, outDir string, warn io.Writer) error 
 				_, err := zw.Create(entry + "/")
 				return err
 			}
+			// symlink 条目：跟随判断目标是目录还是文件。指向目录的跳过并 warning
+			//（避免 FileInfoHeader 生成目录头后 io.Copy 读目录报 "is a directory"）。
+			if d.Type()&os.ModeSymlink != 0 {
+				fi, err := os.Stat(path)
+				if err != nil {
+					return err
+				}
+				if fi.IsDir() {
+					fmt.Fprintf(warn, "Warning: skill '%s' contains directory symlink '%s', skipped\n", skill, rel)
+					return nil
+				}
+			}
 			return addZipFile(zw, entry, path)
 		})
 		if err != nil {
@@ -177,7 +198,14 @@ func exportSkillsZip(p *paths.Paths, name, outDir string, warn io.Writer) error 
 	if err := zw.Close(); err != nil {
 		return err
 	}
-	return f.Close()
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, zipPath); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 // addZipFile 将文件内容写入 zip 的指定条目。

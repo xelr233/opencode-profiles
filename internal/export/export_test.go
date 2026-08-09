@@ -202,6 +202,44 @@ func TestExportWithSkillsSymlinkedSource(t *testing.T) {
 	}
 }
 
+func TestExportWithSkillsNestedSymlink(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	makeSkillSource(t, p, "brainstorming")
+	// 技能源内部含指向子目录的 symlink（如 vendor/ 子仓库），WalkDir 不跟随
+	src := p.SkillSource("brainstorming")
+	vendorReal := filepath.Join(src, "vendor", "real")
+	if err := os.MkdirAll(vendorReal, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(vendorReal, "file.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(vendorReal, filepath.Join(src, "vendorlink")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Export(p, "work", outDir, true, warn); err != nil {
+		t.Fatal(err)
+	}
+	zipPath := filepath.Join(outDir, "work-skills.zip")
+	if _, ok := readZipEntry(t, zipPath, "brainstorming/SKILL.md"); !ok {
+		t.Fatal("missing brainstorming/SKILL.md")
+	}
+	for _, name := range []string{"brainstorming/vendorlink", "brainstorming/vendorlink/"} {
+		if _, ok := readZipEntry(t, zipPath, name); ok {
+			t.Fatalf("directory symlink %s should be skipped", name)
+		}
+	}
+	if !strings.Contains(warn.String(), "directory symlink") || !strings.Contains(warn.String(), "vendorlink") {
+		t.Fatalf("expected directory symlink warning, got: %q", warn.String())
+	}
+	if _, err := os.Stat(zipPath + ".tmp"); err == nil {
+		t.Fatal("tmp file left behind after export")
+	}
+	if _, err := zip.OpenReader(zipPath); err != nil {
+		t.Fatalf("final skills zip corrupted: %v", err)
+	}
+}
+
 func TestExportWithSkillsMissingSourceWarns(t *testing.T) {
 	p, outDir, warn := makeExportEnv(t)
 	makeSkillSource(t, p, "brainstorming")
