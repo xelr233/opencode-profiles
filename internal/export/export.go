@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"opencode-profiles/internal/ops"
 	"opencode-profiles/internal/paths"
@@ -174,4 +175,97 @@ func addZipFile(zw *zip.Writer, entry, path string) error {
 	defer rc.Close()
 	_, err = io.Copy(w, rc)
 	return err
+}
+
+// Import 从 zip 还原 profile 到 profiles/<name>/。skillsZipPath 为空时尝试
+// 同目录 <basename>-skills.zip 自动关联。warning 写入 warn。
+func Import(p *paths.Paths, zipPath, name, skillsZipPath string, warn io.Writer) error {
+	if err := ops.EnsureInitialized(p); err != nil {
+		return err
+	}
+	profileDir := p.ProfileDir(name)
+	if _, err := os.Stat(profileDir); err == nil {
+		return fmt.Errorf("Profile '%s' already exists, use --name to import under a different name", name)
+	}
+
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+
+	hasConfig := false
+	for _, f := range zr.File {
+		if f.Name == "opencode.json" {
+			hasConfig = true
+			break
+		}
+	}
+	if !hasConfig {
+		return fmt.Errorf("invalid profile zip '%s': missing opencode.json", zipPath)
+	}
+
+	if err := os.MkdirAll(profileDir, 0o755); err != nil {
+		return err
+	}
+	for _, f := range zr.File {
+		switch f.Name {
+		case "opencode.json", "skills.yml", "tui.json":
+			if err := extractFile(f, profileDir); err != nil {
+				return err
+			}
+		}
+	}
+
+	// skills zip：显式指定或自动关联
+	skillsPath := skillsZipPath
+	if skillsPath == "" {
+		base := strings.TrimSuffix(filepath.Base(zipPath), filepath.Ext(zipPath))
+		candidate := filepath.Join(filepath.Dir(zipPath), base+"-skills.zip")
+		if _, err := os.Stat(candidate); err == nil {
+			skillsPath = candidate
+		}
+	}
+	if skillsPath != "" {
+		if err := importSkillsZip(p, skillsPath, warn); err != nil {
+			return err
+		}
+	}
+
+	// skills.yml 中引用的技能：本地缺失的 warning，存在的确保 symlink
+	return linkExistingSkills(p, name, warn)
+}
+
+// extractFile 将 zip 条目解压到 dstDir，拒绝路径穿越。
+func extractFile(f *zip.File, dstDir string) error {
+	if strings.Contains(f.Name, "..") || filepath.IsAbs(f.Name) {
+		return fmt.Errorf("unsafe zip entry: %s", f.Name)
+	}
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	dst := filepath.Join(dstDir, f.Name)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	w, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(w, rc); err != nil {
+		w.Close()
+		return err
+	}
+	return w.Close()
+}
+
+// importSkillsZip 与 linkExistingSkills 在任务 5 实现。
+func importSkillsZip(p *paths.Paths, zipPath string, warn io.Writer) error {
+	return nil
+}
+
+func linkExistingSkills(p *paths.Paths, name string, warn io.Writer) error {
+	return nil
 }

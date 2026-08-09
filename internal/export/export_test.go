@@ -187,3 +187,87 @@ func TestExportWithSkillsMissingSourceWarns(t *testing.T) {
 		t.Fatal("rtk should be skipped")
 	}
 }
+
+func makeZip(t *testing.T, zipPath string, files map[string]string) {
+	t.Helper()
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	zw := zip.NewWriter(f)
+	for name, content := range files {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestImportProfile(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	if err := Export(p, "work", outDir, false, warn); err != nil {
+		t.Fatal(err)
+	}
+	// 导入到独立环境 p2（保证 work 不存在）
+	p2 := paths.New(filepath.Join(t.TempDir(), "opencode"), filepath.Join(t.TempDir(), "skills"))
+	if err := Import(p2, filepath.Join(outDir, "work.zip"), "work", "", warn); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(p2.ProfileConfig("work"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(cfg), "provider") {
+		t.Fatalf("provider should be stripped on import too: %s", cfg)
+	}
+	if _, err := os.Stat(p2.ProfileSkillsYML("work")); err != nil {
+		t.Fatalf("skills.yml not restored: %v", err)
+	}
+	if _, err := os.Stat(p2.ProfileTUIConfig("work")); err != nil {
+		t.Fatalf("tui.json not restored: %v", err)
+	}
+}
+
+func TestImportInvalidZip(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	badZip := filepath.Join(outDir, "bad.zip")
+	makeZip(t, badZip, map[string]string{"skills.yml": "- foo\n"})
+	if err := Import(p, badZip, "bad", "", warn); err == nil {
+		t.Fatal("expected error for zip without opencode.json")
+	}
+}
+
+func TestImportExistingProfileRejected(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	if err := Export(p, "work", outDir, false, warn); err != nil {
+		t.Fatal(err)
+	}
+	p2 := paths.New(filepath.Join(t.TempDir(), "opencode"), filepath.Join(t.TempDir(), "skills"))
+	if err := Import(p2, filepath.Join(outDir, "work.zip"), "work", "", warn); err != nil {
+		t.Fatal(err)
+	}
+	if err := Import(p2, filepath.Join(outDir, "work.zip"), "work", "", warn); err == nil {
+		t.Fatal("expected error importing over existing profile")
+	}
+}
+
+func TestImportWithNewName(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	if err := Export(p, "work", outDir, false, warn); err != nil {
+		t.Fatal(err)
+	}
+	// custom 在 p 中不存在，直接导入到 p
+	if err := Import(p, filepath.Join(outDir, "work.zip"), "custom", "", warn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p.ProfileConfig("custom")); err != nil {
+		t.Fatalf("custom profile not created: %v", err)
+	}
+}
