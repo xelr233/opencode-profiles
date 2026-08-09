@@ -286,8 +286,17 @@ func TestImportWithSkills(t *testing.T) {
 	if err := Import(p2, filepath.Join(outDir, "work.zip"), "work", "", warn); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(p2.SkillSource("brainstorming")); err != nil {
-		t.Fatalf("skill source not imported: %v", err)
+	for _, skill := range []string{"brainstorming", "rtk"} {
+		sk, err := os.ReadFile(filepath.Join(p2.SkillSource(skill), "SKILL.md"))
+		if err != nil {
+			t.Fatalf("%s/SKILL.md not landed at skill source: %v", skill, err)
+		}
+		if !strings.Contains(string(sk), "# "+skill) {
+			t.Fatalf("%s/SKILL.md content wrong: %q", skill, sk)
+		}
+		if _, err := os.Stat(filepath.Join(p2.SkillSource(skill), "data.txt")); err != nil {
+			t.Fatalf("%s/data.txt not landed at skill source: %v", skill, err)
+		}
 	}
 	link := filepath.Join(p2.BaseDir(), "skills", "brainstorming")
 	resolved, err := os.Readlink(link)
@@ -370,5 +379,35 @@ func TestImportExplicitSkillsZip(t *testing.T) {
 	}
 	if _, err := os.Stat(p2.SkillSource("brainstorming")); err != nil {
 		t.Fatalf("skill source not imported via explicit --skills: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(p2.SkillSource("brainstorming"), "SKILL.md")); err != nil {
+		t.Fatalf("SKILL.md not landed at skill source: %v", err)
+	}
+}
+
+func TestImportSkillsZipRejectsUnsafeEntries(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	if err := Export(p, "work", outDir, false, warn); err != nil {
+		t.Fatal(err)
+	}
+	// 构造含穿越条目与绝对路径条目的 skills zip（自动关联 outDir/work-skills.zip）
+	makeZip(t, filepath.Join(outDir, "work-skills.zip"), map[string]string{
+		"evil/../../x":  "bad",
+		"/abs/SKILL.md": "bad",
+	})
+	p2 := paths.New(filepath.Join(t.TempDir(), "opencode"), filepath.Join(t.TempDir(), "skills"))
+	// 目标环境已存在 evil 源：确保 unsafe 校验先于"已存在跳过"执行（发现 #5）
+	if err := os.MkdirAll(p2.SkillSource("evil"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := Import(p2, filepath.Join(outDir, "work.zip"), "work", "", warn)
+	if err == nil {
+		t.Fatal("expected error for unsafe skills zip entry")
+	}
+	if !strings.Contains(err.Error(), "unsafe") {
+		t.Fatalf("expected unsafe error, got: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(p2.SkillSourcesDir(), "x")); err == nil {
+		t.Fatal("traversal entry escaped skill sources dir")
 	}
 }

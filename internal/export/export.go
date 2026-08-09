@@ -269,22 +269,35 @@ func importSkillsZip(p *paths.Paths, zipPath string, warn io.Writer) error {
 	}
 	defer zr.Close()
 
+	// 每个技能只做一次"本地是否已存在"判定：技能自身的目录条目（如 <skill>/./）
+	// 会先创建 src，若逐条目 Stat，本导入刚创建的目录会被误判为"已存在"而跳过文件。
+	skip := make(map[string]bool)
+
 	for _, f := range zr.File {
+		// unsafe 校验先于任何跳过逻辑，恶意条目一律拒绝（穿越/绝对路径）
+		if strings.Contains(f.Name, "..") || filepath.IsAbs(f.Name) {
+			return fmt.Errorf("unsafe zip entry: %s", f.Name)
+		}
 		parts := strings.SplitN(f.Name, "/", 2)
 		if len(parts) < 2 || parts[0] == "" {
 			continue
 		}
 		skill := parts[0]
 		src := p.SkillSource(skill)
-		if _, err := os.Stat(src); err == nil {
-			fmt.Fprintf(warn, "Warning: skill '%s' already exists locally, skipped\n", skill)
+		exists, seen := skip[skill]
+		if !seen {
+			_, err := os.Stat(src)
+			exists = err == nil
+			skip[skill] = exists
+			if exists {
+				fmt.Fprintf(warn, "Warning: skill '%s' already exists locally, skipped\n", skill)
+			}
+		}
+		if exists {
 			continue
 		}
-		if strings.Contains(f.Name, "..") || filepath.IsAbs(f.Name) {
-			return fmt.Errorf("unsafe zip entry: %s", f.Name)
-		}
 		rel := strings.TrimSuffix(parts[1], "/")
-		if rel == "" {
+		if rel == "" || rel == "." {
 			continue
 		}
 		dst := filepath.Join(src, rel)
@@ -294,7 +307,8 @@ func importSkillsZip(p *paths.Paths, zipPath string, warn io.Writer) error {
 			}
 			continue
 		}
-		if err := extractFile(f, src); err != nil {
+		// f.Name 为 "<skill>/<rel>" 完整路径，解压到 skill_sources_dir 根即可
+		if err := extractFile(f, p.SkillSourcesDir()); err != nil {
 			return err
 		}
 	}
