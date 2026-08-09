@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"opencode-profiles/internal/diff"
+	exportpkg "opencode-profiles/internal/export"
 	gitpkg "opencode-profiles/internal/git"
 	"opencode-profiles/internal/ops"
 	"opencode-profiles/internal/paths"
@@ -21,6 +23,15 @@ func main() {
 // run 解析参数并执行命令。返回退出码；stdout/stderr 与 p 可注入供测试使用。
 // dbPath 供测试注入（空字符串使用默认 ~/.cc-switch/cc-switch.db）。
 func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string) int {
+	// 子命令：export / import（首个位置参数）
+	if len(args) > 0 {
+		switch args[0] {
+		case "export":
+			return runExport(args[1:], stdout, stderr, p)
+		case "import":
+			return runImport(args[1:], stdout, stderr, p)
+		}
+	}
 	fs := flag.NewFlagSet("opencode-profiles", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
@@ -256,4 +267,87 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 		fmt.Fprintln(stdout, "Use --help for available commands.")
 	}
 	return 0
+}
+
+// runExport 处理 export 子命令：export <name> [--with-skills] [--out <dir>]。
+func runExport(args []string, stdout, stderr io.Writer, p *paths.Paths) int {
+	fs := flag.NewFlagSet("export", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	withSkills := fs.Bool("with-skills", false, "也导出源 skills 压缩包")
+	outDir := fs.String("out", ".", "输出目录（默认当前目录）")
+	if err := fs.Parse(reorderFlags(args, fs)); err != nil {
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprintln(stderr, "Error: export requires exactly one profile name")
+		return 1
+	}
+	name := fs.Arg(0)
+	if err := exportpkg.Export(p, name, *outDir, *withSkills, stderr); err != nil {
+		fmt.Fprintf(stderr, "Error: %s\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Exported profile '%s' to %s\n", name, filepath.Join(*outDir, name+".zip"))
+	return 0
+}
+
+// runImport 处理 import 子命令：import <file.zip> [--name <new>] [--skills <file.zip>]。
+func runImport(args []string, stdout, stderr io.Writer, p *paths.Paths) int {
+	fs := flag.NewFlagSet("import", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	name := fs.String("name", "", "导入后的 profile 名（默认取 zip 文件名）")
+	skillsZip := fs.String("skills", "", "显式指定 skills zip")
+	if err := fs.Parse(reorderFlags(args, fs)); err != nil {
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprintln(stderr, "Error: import requires exactly one zip file")
+		return 1
+	}
+	zipPath := fs.Arg(0)
+	importName := *name
+	if importName == "" {
+		importName = strings.TrimSuffix(filepath.Base(zipPath), filepath.Ext(zipPath))
+	}
+	if err := exportpkg.Import(p, zipPath, importName, *skillsZip, stderr); err != nil {
+		fmt.Fprintf(stderr, "Error: %s\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Imported profile '%s' from %s\n", importName, zipPath)
+	return 0
+}
+
+// reorderFlags 将位置参数移到末尾，使 stdlib flag 包能解析与位置参数混排的选项
+// （flag 包在第一个非 flag 参数处停止解析）。带取值（非 bool）的 flag 连取其下一参数。
+func reorderFlags(args []string, fs *flag.FlagSet) []string {
+	var flags, pos []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			pos = append(pos, args[i+1:]...)
+			break
+		}
+		if strings.HasPrefix(a, "-") && a != "-" {
+			flags = append(flags, a)
+			name := strings.TrimLeft(a, "-")
+			if eq := strings.Index(name, "="); eq != -1 {
+				name = name[:eq]
+			}
+			if f := fs.Lookup(name); f != nil && !isBoolFlag(f) {
+				if i+1 < len(args) {
+					flags = append(flags, args[i+1])
+					i++
+				}
+			}
+			continue
+		}
+		pos = append(pos, a)
+	}
+	return append(flags, pos...)
+}
+
+// isBoolFlag 判断 flag 是否为 bool 类型（bool flag 不带取值）。
+func isBoolFlag(f *flag.Flag) bool {
+	b, ok := f.Value.(interface{ IsBoolFlag() bool })
+	return ok && b.IsBoolFlag()
 }

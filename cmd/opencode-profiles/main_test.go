@@ -418,6 +418,91 @@ func TestGitCommandRejectsProfile(t *testing.T) {
 	}
 }
 
+func TestExportCommand(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	if err := ops.EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	// 构造 work profile
+	if err := ops.CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, p.ProfileConfig("work"), `{"provider": {"deepseek": {}}, "shell": "zsh"}`)
+
+	outDir := t.TempDir()
+	code := run([]string{"export", "work", "--out", outDir}, out, errOut, p, db)
+	if code != 0 {
+		t.Fatalf("export failed code=%d stderr=%q", code, errOut.String())
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "work.zip")); err != nil {
+		t.Fatalf("zip not created: %v", err)
+	}
+}
+
+func TestExportCommandMissingProfile(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	code := run([]string{"export", "nope"}, out, errOut, p, db)
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "not found") {
+		t.Fatalf("stderr=%q", errOut.String())
+	}
+}
+
+func TestImportCommand(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	if err := ops.EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	// 先导出再导入
+	srcP, srcDB, _, _ := newCLIEnv(t)
+	if err := ops.EnsureInitialized(srcP); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.CreateEmpty(srcP, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, srcP.ProfileConfig("work"), `{"provider": {"deepseek": {}}}`)
+	outDir := t.TempDir()
+	if code := run([]string{"export", "work", "--out", outDir}, &bytes.Buffer{}, &bytes.Buffer{}, srcP, srcDB); code != 0 {
+		t.Fatalf("export failed code=%d", code)
+	}
+	code := run([]string{"import", filepath.Join(outDir, "work.zip")}, out, errOut, p, db)
+	if code != 0 {
+		t.Fatalf("import failed code=%d stderr=%q", code, errOut.String())
+	}
+	if _, err := os.Stat(p.ProfileConfig("work")); err != nil {
+		t.Fatalf("work profile not created: %v", err)
+	}
+}
+
+func TestImportCommandNameConflict(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	if err := ops.EnsureInitialized(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.CreateEmpty(p, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	outDir := t.TempDir()
+	srcP, srcDB, _, _ := newCLIEnv(t)
+	if err := ops.EnsureInitialized(srcP); err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFile(t, srcP.ProfileConfig("default"), `{"provider": {"x": {}}}`)
+	if code := run([]string{"export", "default", "--out", outDir}, &bytes.Buffer{}, &bytes.Buffer{}, srcP, srcDB); code != 0 {
+		t.Fatalf("export failed code=%d", code)
+	}
+	code := run([]string{"import", filepath.Join(outDir, "default.zip"), "--name", "work"}, out, errOut, p, db)
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "already exists") {
+		t.Fatalf("stderr=%q", errOut.String())
+	}
+}
+
 // gitAvailable 供 main_test.go 内的跳过判断。
 func gitAvailable() bool {
 	_, err := exec.LookPath("git")
