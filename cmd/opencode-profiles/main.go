@@ -16,6 +16,9 @@ import (
 	"opencode-profiles/internal/skills"
 )
 
+// version 通过 ldflags -X main.version=... 注入，缺省为 "dev"。
+var version = "dev"
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, paths.New("", ""), ""))
 }
@@ -42,6 +45,7 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 		emptyName       string
 		switchName      string
 		listFlag        bool
+		versionFlag     bool
 		fromCurrent     bool
 		fromProfile     string
 		addSkillName    string
@@ -65,6 +69,8 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 	fs.StringVar(&switchName, "switch", "", "切换到指定 profile")
 	fs.BoolVar(&listFlag, "l", false, "列出所有 profile")
 	fs.BoolVar(&listFlag, "list", false, "列出所有 profile")
+	fs.BoolVar(&versionFlag, "version", false, "显示版本号")
+	fs.BoolVar(&versionFlag, "v", false, "显示版本号")
 	fs.BoolVar(&fromCurrent, "from-current", false, "从当前配置导入 provider（配合 -e 使用）")
 	fs.StringVar(&fromProfile, "from-profile", "", "从指定 profile 导入 provider（配合 -e 使用）")
 	fs.StringVar(&addSkillName, "add-skill", "", "Add a skill to a profile")
@@ -78,6 +84,10 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if versionFlag {
+		fmt.Fprintf(stdout, "opencode-profiles %s\n", version)
+		return 0
 	}
 	if !diffFlag && gitRollbackName == "" && fs.NArg() > 0 {
 		fmt.Fprintln(stderr, "Unexpected argument: "+fs.Arg(0))

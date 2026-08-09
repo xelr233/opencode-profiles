@@ -508,3 +508,25 @@ func gitAvailable() bool {
 	_, err := exec.LookPath("git")
 	return err == nil
 }
+
+func TestVersionCommand(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	res := invoke(t, p, db, out, errOut, "--version")
+	if res.code != 0 {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "opencode-profiles") {
+		t.Fatalf("stdout=%q", res.stdout)
+	}
+}
+
+func TestVersionShortFlag(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	res := invoke(t, p, db, out, errOut, "-v")
+	if res.code != 0 {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "opencode-profiles") {
+		t.Fatalf("stdout=%q", res.stdout)
+	}
+}

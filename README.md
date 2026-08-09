@@ -7,7 +7,8 @@
 ### 从源码构建
 
 ```bash
-go build -trimpath -ldflags="-s -w" -o opencode-profiles ./cmd/opencode-profiles
+# 构建（含版本号注入；未指定 version 时输出 "dev"）
+go build -trimpath -ldflags="-s -w -X main.version=v0.3.0" -o opencode-profiles ./cmd/opencode-profiles
 sudo install -m 0755 opencode-profiles /usr/local/bin/
 ```
 
@@ -15,6 +16,7 @@ sudo install -m 0755 opencode-profiles /usr/local/bin/
 
 ```bash
 go run ./cmd/opencode-profiles -h
+go run ./cmd/opencode-profiles --version
 ```
 
 ## 使用方法
