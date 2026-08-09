@@ -243,7 +243,6 @@ import (
 
 	"opencode-profiles/internal/ops"
 	"opencode-profiles/internal/paths"
-	"opencode-profiles/internal/skills"
 )
 
 // Export 将 profile 导出为 zip。withSkills 时额外生成 <name>-skills.zip。
@@ -426,7 +425,7 @@ func TestExportWithSkillsMissingSourceWarns(t *testing.T) {
 
 - [ ] **步骤 3：编写实现代码**
 
-替换 `exportSkillsZip` 空实现：
+替换 `exportSkillsZip` 空实现（此时需在 `export.go` 的 import 块中加入 `"opencode-profiles/internal/skills"`）：
 
 ```go
 // exportSkillsZip 导出 skills.yml 中引用的技能源为 <name>-skills.zip。缺失源跳过并 warning。
