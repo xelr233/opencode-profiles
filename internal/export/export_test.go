@@ -440,3 +440,33 @@ func TestImportSkillsZipRejectsUnsafeEntries(t *testing.T) {
 		t.Fatal("traversal entry escaped skill sources dir")
 	}
 }
+
+func TestValidateProfileName(t *testing.T) {
+	valid := []string{"work", "custom", "v2.1", "a-b_c"}
+	for _, n := range valid {
+		if err := validateProfileName(n); err != nil {
+			t.Fatalf("name %q should be valid: %v", n, err)
+		}
+	}
+	invalid := []string{"", ".", "..", "../evil", "a/b", "a\\b", "evil/../x", "a..b"}
+	for _, n := range invalid {
+		if err := validateProfileName(n); err == nil {
+			t.Fatalf("name %q should be rejected", n)
+		}
+	}
+}
+
+func TestImportRejectsBadName(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	if err := Export(p, "work", outDir, false, warn); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"", "../evil", "a/b", ".", ".."} {
+		if err := Import(p, filepath.Join(outDir, "work.zip"), bad, "", warn); err == nil {
+			t.Fatalf("expected error for name %q", bad)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(p.BaseDir(), "evil")); err == nil {
+		t.Fatal("traversal name escaped profiles dir")
+	}
+}

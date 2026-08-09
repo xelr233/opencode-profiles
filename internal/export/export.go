@@ -15,6 +15,21 @@ import (
 	"opencode-profiles/internal/skills"
 )
 
+// validateProfileName 校验 profile 名，拒绝空名、路径分隔符与路径穿越形式
+// （"."、".." 或其任意出现），防止 <name> 被拼进路径时逃出 profiles/ 目录。
+func validateProfileName(name string) error {
+	if name == "" {
+		return fmt.Errorf("profile name cannot be empty")
+	}
+	if strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("invalid profile name %q: must not contain path separators", name)
+	}
+	if name == "." || strings.Contains(name, "..") {
+		return fmt.Errorf("invalid profile name %q", name)
+	}
+	return nil
+}
+
 // stripProviders 读取 opencode.json 内容并删除 provider 键，其余字段原样保留。
 func stripProviders(raw []byte) ([]byte, error) {
 	var cfg map[string]any
@@ -28,6 +43,9 @@ func stripProviders(raw []byte) ([]byte, error) {
 // Export 将 profile 导出为 zip。withSkills 时额外生成 <name>-skills.zip。
 // warning 写入 warn。
 func Export(p *paths.Paths, name, outDir string, withSkills bool, warn io.Writer) error {
+	if err := validateProfileName(name); err != nil {
+		return err
+	}
 	if err := ops.EnsureInitialized(p); err != nil {
 		return err
 	}
@@ -189,6 +207,9 @@ func addZipFile(zw *zip.Writer, entry, path string) error {
 // Import 从 zip 还原 profile 到 profiles/<name>/。skillsZipPath 为空时尝试
 // 同目录 <basename>-skills.zip 自动关联。warning 写入 warn。
 func Import(p *paths.Paths, zipPath, name, skillsZipPath string, warn io.Writer) error {
+	if err := validateProfileName(name); err != nil {
+		return err
+	}
 	if err := ops.EnsureInitialized(p); err != nil {
 		return err
 	}
