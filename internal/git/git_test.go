@@ -115,3 +115,54 @@ func writeProfileFiles(t *testing.T, p *paths.Paths, name, config string) {
 		t.Fatal(err)
 	}
 }
+
+func TestCommitAndLog(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	writeProfileFiles(t, p, name, `{"shell":"bash"}`)
+	if err := Init(p, name); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(p.ProfileConfig(name), []byte(`{"shell":"zsh"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Commit(p, name, "switch shell"); err != nil {
+		t.Fatalf("Commit failed: %v", err)
+	}
+
+	log, err := Log(p, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(log), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 commits, got %d: %q", len(lines), log)
+	}
+	if !strings.Contains(log, "switch shell") {
+		t.Fatalf("missing commit message: %q", log)
+	}
+}
+
+func TestCommitOnUninitializedRepo(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	writeProfileFiles(t, p, name, `{"shell":"bash"}`)
+	if err := Commit(p, name, "msg"); err == nil {
+		t.Fatal("expected error committing to uninitialized repo")
+	}
+}
+
+func TestLogOnUninitializedRepo(t *testing.T) {
+	if !Available() {
+		t.Skip("git not installed")
+	}
+	p, name := makeRepo(t)
+	if _, err := Log(p, name); err == nil {
+		t.Fatal("expected error logging uninitialized repo")
+	}
+}

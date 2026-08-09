@@ -88,3 +88,52 @@ func Init(p *paths.Paths, name string) error {
 	}
 	return nil
 }
+
+// errNotRepo 表示 profile 未启用版本管理。
+func errNotRepo(name string) error {
+	return errors.New("profile '" + name + "' is not under version control; run --git-init first")
+}
+
+// ensureRepo 返回 nil 或 errNotRepo。
+func ensureRepo(p *paths.Paths, name string) error {
+	if !Available() {
+		return ErrGitNotFound
+	}
+	if !IsRepo(p, name) {
+		return errNotRepo(name)
+	}
+	return nil
+}
+
+// Commit 提交 profile 的三个被跟踪文件，消息缺省时用自动消息。
+func Commit(p *paths.Paths, name, message string) error {
+	if err := ensureRepo(p, name); err != nil {
+		return err
+	}
+	if message == "" {
+		message = "chore: update profile " + name
+	}
+	// 用 os.Stat 过滤出实际存在的被跟踪文件再逐个 add——git 的 --ignore-missing
+	// 仅能与 --dry-run 搭配（git >= 2.43 强制），不能用于此处；tui.json/skills.yml
+	// 可能不存在（如 -e 创建的 profile）。
+	for _, f := range trackedFiles {
+		if _, err := os.Stat(filepath.Join(p.ProfileDir(name), f)); err == nil {
+			if _, _, err := run(p, name, "add", "--", f); err != nil {
+				return err
+			}
+		}
+	}
+	if _, _, err := run(p, name, "commit", "-m", message); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Log 返回 git log --oneline 输出（空仓库时返回 nil）。
+func Log(p *paths.Paths, name string) (string, error) {
+	if err := ensureRepo(p, name); err != nil {
+		return "", err
+	}
+	out, _, err := run(p, name, "log", "--oneline")
+	return out, err
+}
