@@ -99,6 +99,41 @@ opencode-profiles --git-rollback work HEAD~1
 
 每个 profile 独立 git 仓库，跟踪 `opencode.json`、`tui.json`、`skills.yml` 三个文件，`skills/` 目录自动排除。回滚前工作区有未提交改动时会拒绝。
 
+### 导出 / 导入 profile
+
+导出 profile（导出的 `opencode.json` 不含任何 provider，避免泄露密钥）：
+
+```bash
+# 导出为 ./work.zip（含 opencode.json、skills.yml、tui.json）
+opencode-profiles export work
+
+# 同时导出源 skills 压缩包（默认不开启）
+opencode-profiles export work --with-skills   # 生成 work.zip + work-skills.zip
+
+# 指定输出目录
+opencode-profiles export work --out /path/to/backup
+```
+
+导入 zip：
+
+```bash
+# 默认 profile 名 = zip 文件名（去 .zip）
+opencode-profiles import work.zip
+
+# 指定导入名（目标已存在时用 --name 避免覆盖冲突）
+opencode-profiles import work.zip --name work-backup
+
+# 显式指定 skills zip（未指定时自动关联同目录的 <name>-skills.zip）
+opencode-profiles import work.zip --skills work-skills.zip
+```
+
+导入说明：
+
+- 仅导入 profile 文件，不切换当前激活 profile，不导入 git 历史。
+- 目标 profile 已存在时报错，用 `--name` 指定新名字。
+- `skills.yml` 原样保留；本地缺失的技能源打印 warning 且不创建软链接。
+- skills zip 导入到 `~/.cc-switch/skills/<skill>/`，同名源已存在时跳过不覆盖。
+
 ## 目录结构
 
 ```
