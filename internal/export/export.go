@@ -261,11 +261,69 @@ func extractFile(f *zip.File, dstDir string) error {
 	return w.Close()
 }
 
-// importSkillsZip 与 linkExistingSkills 在任务 5 实现。
+// importSkillsZip 解压 skills zip 到 skill_sources_dir。<skill> 源已存在时跳过该技能并 warning。
 func importSkillsZip(p *paths.Paths, zipPath string, warn io.Writer) error {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+
+	for _, f := range zr.File {
+		parts := strings.SplitN(f.Name, "/", 2)
+		if len(parts) < 2 || parts[0] == "" {
+			continue
+		}
+		skill := parts[0]
+		src := p.SkillSource(skill)
+		if _, err := os.Stat(src); err == nil {
+			fmt.Fprintf(warn, "Warning: skill '%s' already exists locally, skipped\n", skill)
+			continue
+		}
+		if strings.Contains(f.Name, "..") || filepath.IsAbs(f.Name) {
+			return fmt.Errorf("unsafe zip entry: %s", f.Name)
+		}
+		rel := strings.TrimSuffix(parts[1], "/")
+		if rel == "" {
+			continue
+		}
+		dst := filepath.Join(src, rel)
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(dst, 0o755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := extractFile(f, src); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
+// linkExistingSkills 为 skills.yml 中本地存在的技能建立 base/skills/<skill> symlink。
+// 本地缺失的技能打印 warning，不建 symlink；同名 symlink 已存在则跳过。
 func linkExistingSkills(p *paths.Paths, name string, warn io.Writer) error {
+	skillsList, err := skills.ReadSkillsYML(p, name)
+	if err != nil {
+		return err
+	}
+	skillsDir := filepath.Join(p.BaseDir(), "skills")
+	for _, skill := range skillsList {
+		if _, err := os.Stat(p.SkillSource(skill)); err != nil {
+			fmt.Fprintf(warn, "Warning: skill '%s' not found locally, symlink not created\n", skill)
+			continue
+		}
+		link := filepath.Join(skillsDir, skill)
+		if _, err := os.Lstat(link); err == nil {
+			continue
+		}
+		if err := os.MkdirAll(skillsDir, 0o755); err != nil {
+			return err
+		}
+		if err := os.Symlink(p.SkillSource(skill), link); err != nil {
+			return err
+		}
+	}
 	return nil
 }

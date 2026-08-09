@@ -271,3 +271,104 @@ func TestImportWithNewName(t *testing.T) {
 		t.Fatalf("custom profile not created: %v", err)
 	}
 }
+
+func TestImportWithSkills(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	makeSkillSource(t, p, "brainstorming")
+	makeSkillSource(t, p, "rtk")
+	if err := Export(p, "work", outDir, true, warn); err != nil {
+		t.Fatal(err)
+	}
+	// 导入到另一个独立环境（干净的 skill_sources 与 base）
+	base2 := filepath.Join(t.TempDir(), "opencode")
+	src2 := filepath.Join(t.TempDir(), "skills")
+	p2 := paths.New(base2, src2)
+	if err := Import(p2, filepath.Join(outDir, "work.zip"), "work", "", warn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p2.SkillSource("brainstorming")); err != nil {
+		t.Fatalf("skill source not imported: %v", err)
+	}
+	link := filepath.Join(p2.BaseDir(), "skills", "brainstorming")
+	resolved, err := os.Readlink(link)
+	if err != nil {
+		t.Fatalf("symlink not created: %v", err)
+	}
+	if resolved != p2.SkillSource("brainstorming") {
+		t.Fatalf("symlink points to %q, want %q", resolved, p2.SkillSource("brainstorming"))
+	}
+}
+
+func TestImportWithSkillsSkipsExistingSource(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	makeSkillSource(t, p, "brainstorming")
+	makeSkillSource(t, p, "rtk")
+	if err := Export(p, "work", outDir, true, warn); err != nil {
+		t.Fatal(err)
+	}
+	// 目标环境已存在 brainstorming 源（旧版本）
+	p2 := paths.New(filepath.Join(t.TempDir(), "opencode"), filepath.Join(t.TempDir(), "skills"))
+	if err := os.MkdirAll(p2.SkillSource("brainstorming"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p2.SkillSource("brainstorming"), "SKILL.md"), []byte("# old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	warn.Reset()
+	if err := Import(p2, filepath.Join(outDir, "work.zip"), "work", "", warn); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.ReadFile(filepath.Join(p2.SkillSource("brainstorming"), "SKILL.md"))
+	if string(old) != "# old\n" {
+		t.Fatalf("existing source overwritten: %s", old)
+	}
+	if !strings.Contains(warn.String(), "brainstorming") {
+		t.Fatalf("expected skip warning for brainstorming, got: %q", warn.String())
+	}
+}
+
+func TestImportMissingSkillWarnsNoLink(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	if err := Export(p, "work", outDir, false, warn); err != nil {
+		t.Fatal(err)
+	}
+	p2 := paths.New(filepath.Join(t.TempDir(), "opencode"), filepath.Join(t.TempDir(), "skills"))
+	warn.Reset()
+	if err := Import(p2, filepath.Join(outDir, "work.zip"), "work", "", warn); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(warn.String(), "brainstorming") {
+		t.Fatalf("expected missing-skill warning, got: %q", warn.String())
+	}
+	link := filepath.Join(p2.BaseDir(), "skills", "brainstorming")
+	if _, err := os.Lstat(link); err == nil {
+		t.Fatal("symlink should not be created for missing skill")
+	}
+}
+
+func TestImportExplicitSkillsZip(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	makeSkillSource(t, p, "brainstorming")
+	makeSkillSource(t, p, "rtk")
+	if err := Export(p, "work", outDir, true, warn); err != nil {
+		t.Fatal(err)
+	}
+	// 将 skills zip 移到独立目录，验证显式 --skills 路径（避免自动关联）
+	skillsDir := t.TempDir()
+	skillsZip := filepath.Join(skillsDir, "moved-skills.zip")
+	data, err := os.ReadFile(filepath.Join(outDir, "work-skills.zip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(skillsZip, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p2 := paths.New(filepath.Join(t.TempDir(), "opencode"), filepath.Join(t.TempDir(), "skills"))
+	warn.Reset()
+	if err := Import(p2, filepath.Join(outDir, "work.zip"), "work", skillsZip, warn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p2.SkillSource("brainstorming")); err != nil {
+		t.Fatalf("skill source not imported via explicit --skills: %v", err)
+	}
+}
