@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -318,4 +319,91 @@ func TestNoArgs(t *testing.T) {
 	if res.code != 0 || !strings.Contains(res.stdout, "Use --help for available commands.") {
 		t.Fatalf("code=%d stdout=%q", res.code, res.stdout)
 	}
+}
+
+func TestGitInitCommand(t *testing.T) {
+	if !gitAvailable() {
+		t.Skip("git not installed")
+	}
+	p, db, out, errOut := newCLIEnv(t)
+	invoke(t, p, db, out, errOut, "-e", "work")
+	res := invoke(t, p, db, out, errOut, "--git-init", "work")
+	if res.code != 0 || !strings.Contains(res.stdout, "Version control enabled for 'work'") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", res.code, res.stdout, res.stderr)
+	}
+}
+
+func TestGitInitRejectsExisting(t *testing.T) {
+	if !gitAvailable() {
+		t.Skip("git not installed")
+	}
+	p, db, out, errOut := newCLIEnv(t)
+	invoke(t, p, db, out, errOut, "-e", "work")
+	invoke(t, p, db, out, errOut, "--git-init", "work")
+	res := invoke(t, p, db, out, errOut, "--git-init", "work")
+	if res.code != 1 || !strings.Contains(res.stderr, "already under version control") {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+}
+
+func TestGitCommitAndLogCommand(t *testing.T) {
+	if !gitAvailable() {
+		t.Skip("git not installed")
+	}
+	p, db, out, errOut := newCLIEnv(t)
+	invoke(t, p, db, out, errOut, "-e", "work")
+	invoke(t, p, db, out, errOut, "--git-init", "work")
+	writeJSONFile(t, p.ProfileConfig("work"), `{"shell":"zsh"}`)
+	res := invoke(t, p, db, out, errOut, "--git-commit", "work", "-m", "update")
+	if res.code != 0 || !strings.Contains(res.stdout, "Committed changes for 'work'") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", res.code, res.stdout, res.stderr)
+	}
+	res = invoke(t, p, db, out, errOut, "--git-log", "work")
+	if res.code != 0 || !strings.Contains(res.stdout, "update") {
+		t.Fatalf("code=%d stdout=%q", res.code, res.stdout)
+	}
+}
+
+func TestGitRollbackCommand(t *testing.T) {
+	if !gitAvailable() {
+		t.Skip("git not installed")
+	}
+	p, db, out, errOut := newCLIEnv(t)
+	invoke(t, p, db, out, errOut, "-e", "work")
+	invoke(t, p, db, out, errOut, "--git-init", "work")
+	writeJSONFile(t, p.ProfileConfig("work"), `{"shell":"zsh"}`)
+	invoke(t, p, db, out, errOut, "--git-commit", "work", "-m", "first")
+	res := invoke(t, p, db, out, errOut, "--git-rollback", "work", "HEAD~1")
+	if res.code != 0 || !strings.Contains(res.stdout, "Rolled back 'work' to HEAD~1") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", res.code, res.stdout, res.stderr)
+	}
+	got, _ := os.ReadFile(p.ProfileConfig("work"))
+	if string(got) != `{}` {
+		t.Fatalf("expected rollback to empty config, got %q", got)
+	}
+}
+
+func TestGitCommandWithoutGitInstalled(t *testing.T) {
+	if gitAvailable() {
+		t.Skip("git installed; this test needs a machine without git")
+	}
+	p, db, out, errOut := newCLIEnv(t)
+	res := invoke(t, p, db, out, errOut, "--git-init", "work")
+	if res.code != 1 || !strings.Contains(res.stderr, "git is not installed") {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+}
+
+func TestGitCommandMutualExclusion(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	res := invoke(t, p, db, out, errOut, "--git-init", "work", "-l")
+	if res.code != 1 || !strings.Contains(res.stderr, "cannot be combined") {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+}
+
+// gitAvailable 供 main_test.go 内的跳过判断。
+func gitAvailable() bool {
+	_, err := exec.LookPath("git")
+	return err == nil
 }

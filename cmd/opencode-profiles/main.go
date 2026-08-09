@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"opencode-profiles/internal/diff"
+	gitpkg "opencode-profiles/internal/git"
 	"opencode-profiles/internal/ops"
 	"opencode-profiles/internal/paths"
 	"opencode-profiles/internal/skills"
@@ -35,6 +36,11 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 		addSkillName    string
 		removeSkillName string
 		profileName     string
+		gitInitName     string
+		gitCommitName   string
+		gitLogName      string
+		gitRollbackName string
+		commitMessage   string
 	)
 	fs.BoolVar(&backupFlag, "b", false, "备份当前配置")
 	fs.BoolVar(&backupFlag, "backup", false, "备份当前配置")
@@ -53,11 +59,16 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 	fs.StringVar(&addSkillName, "add-skill", "", "Add a skill to a profile")
 	fs.StringVar(&removeSkillName, "remove-skill", "", "Remove a skill from a profile")
 	fs.StringVar(&profileName, "profile", "", "Target profile for --add-skill/--remove-skill")
+	fs.StringVar(&gitInitName, "git-init", "", "Enable git version control for a profile")
+	fs.StringVar(&gitCommitName, "git-commit", "", "Commit changes for a profile")
+	fs.StringVar(&gitLogName, "git-log", "", "Show commit history for a profile")
+	fs.StringVar(&gitRollbackName, "git-rollback", "", "Roll back a profile to a commit (soft)")
+	fs.StringVar(&commitMessage, "m", "", "Commit message for --git-commit")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if !diffFlag && fs.NArg() > 0 {
+	if !diffFlag && gitRollbackName == "" && fs.NArg() > 0 {
 		fmt.Fprintln(stderr, "Unexpected argument: "+fs.Arg(0))
 		return 2
 	}
@@ -80,6 +91,21 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 			fmt.Fprintln(stderr, "Error: -d accepts at most two profile names")
 			return 1
 		}
+	}
+
+	gitCmd := gitInitName != "" || gitCommitName != "" || gitLogName != "" || gitRollbackName != ""
+	if gitCmd && (backupFlag || diffFlag || createName != "" || emptyName != "" || switchName != "" ||
+		addSkillName != "" || removeSkillName != "" || listFlag || fromCurrent || fromProfile != "") {
+		fmt.Fprintln(stderr, "Error: git commands cannot be combined with other commands")
+		return 1
+	}
+	if gitRollbackName != "" && fs.NArg() != 1 {
+		fmt.Fprintln(stderr, "Error: --git-rollback requires exactly one commit reference")
+		return 1
+	}
+	if commitMessage != "" && gitCommitName == "" {
+		fmt.Fprintln(stderr, "Error: -m can only be used with --git-commit")
+		return 1
 	}
 
 	if fromCurrent && fromProfile != "" {
@@ -148,6 +174,31 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 			return 1
 		}
 		diff.Render(stdout, result)
+	} else if gitInitName != "" {
+		if err := gitpkg.Init(p, gitInitName); err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Version control enabled for '%s'\n", gitInitName)
+	} else if gitCommitName != "" {
+		if err := gitpkg.Commit(p, gitCommitName, commitMessage); err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Committed changes for '%s'\n", gitCommitName)
+	} else if gitLogName != "" {
+		log, err := gitpkg.Log(p, gitLogName)
+		if err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintln(stdout, log)
+	} else if gitRollbackName != "" {
+		if err := gitpkg.Rollback(p, gitRollbackName, fs.Arg(0)); err != nil {
+			fmt.Fprintf(stderr, "Error: %s\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Rolled back '%s' to %s\n", gitRollbackName, fs.Arg(0))
 	} else if switchName != "" {
 		if err := ops.SwitchDB(p, switchName, dbPath, stdout); err != nil {
 			fmt.Fprintf(stderr, "Error: %s\n", err)
