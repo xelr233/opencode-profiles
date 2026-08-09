@@ -1,6 +1,7 @@
 package git
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -283,6 +284,19 @@ func TestRollbackOnUninitializedRepo(t *testing.T) {
 	p, name := makeRepo(t)
 	if err := Rollback(p, name, "HEAD"); err == nil {
 		t.Fatal("expected error rolling back uninitialized repo")
+	}
+}
+
+func TestRunWithoutGitReturnsErrGitNotFound(t *testing.T) {
+	orig := gitExec
+	gitExec = ""
+	defer func() { gitExec = orig }()
+	p, name := makeRepo(t)
+	if _, _, err := run(p, name, "status", "--porcelain"); !errors.Is(err, ErrGitNotFound) {
+		t.Fatalf("expected ErrGitNotFound, got %v", err)
+	}
+	if err := Init(p, name); !errors.Is(err, ErrGitNotFound) {
+		t.Fatalf("expected ErrGitNotFound from Init, got %v", err)
 	}
 }
 
