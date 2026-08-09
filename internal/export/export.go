@@ -266,6 +266,11 @@ func Import(p *paths.Paths, zipPath, name, skillsZipPath string, warn io.Writer)
 	if err := os.MkdirAll(profileDir, 0o755); err != nil {
 		return err
 	}
+	// 与其他 profile（CreateEmpty / EnsureInitialized 的 default）保持一致：
+	// profiles/<name>/skills/ 目录必须存在（--git-init 的 .gitignore 引用它）。
+	if err := os.MkdirAll(p.ProfileSkills(name), 0o755); err != nil {
+		return err
+	}
 	for _, f := range zr.File {
 		switch f.Name {
 		case "opencode.json", "skills.yml", "tui.json":

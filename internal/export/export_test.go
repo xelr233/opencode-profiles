@@ -300,6 +300,9 @@ func TestImportProfile(t *testing.T) {
 	if _, err := os.Stat(p2.ProfileTUIConfig("work")); err != nil {
 		t.Fatalf("tui.json not restored: %v", err)
 	}
+	if fi, err := os.Stat(p2.ProfileSkills("work")); err != nil || !fi.IsDir() {
+		t.Fatalf("profile skills dir not created on import: %v", err)
+	}
 }
 
 func TestImportInvalidZip(t *testing.T) {
