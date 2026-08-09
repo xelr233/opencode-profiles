@@ -402,6 +402,14 @@ func TestGitCommandMutualExclusion(t *testing.T) {
 	}
 }
 
+func TestGitCommandsCannotCombine(t *testing.T) {
+	p, db, out, errOut := newCLIEnv(t)
+	res := invoke(t, p, db, out, errOut, "--git-init", "work", "--git-commit", "work")
+	if res.code != 1 || !strings.Contains(res.stderr, "cannot be combined") {
+		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
+	}
+}
+
 // gitAvailable 供 main_test.go 内的跳过判断。
 func gitAvailable() bool {
 	_, err := exec.LookPath("git")

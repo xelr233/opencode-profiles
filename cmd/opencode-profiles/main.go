@@ -93,9 +93,19 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 		}
 	}
 
-	gitCmd := gitInitName != "" || gitCommitName != "" || gitLogName != "" || gitRollbackName != ""
+	gitCmdCount := 0
+	for _, s := range []string{gitInitName, gitCommitName, gitLogName, gitRollbackName} {
+		if s != "" {
+			gitCmdCount++
+		}
+	}
+	if gitCmdCount > 1 {
+		fmt.Fprintln(stderr, "Error: git commands cannot be combined with other commands")
+		return 1
+	}
+	gitCmd := gitCmdCount > 0
 	if gitCmd && (backupFlag || diffFlag || createName != "" || emptyName != "" || switchName != "" ||
-		addSkillName != "" || removeSkillName != "" || listFlag || fromCurrent || fromProfile != "") {
+		addSkillName != "" || removeSkillName != "" || listFlag || fromCurrent || fromProfile != "" || profileName != "") {
 		fmt.Fprintln(stderr, "Error: git commands cannot be combined with other commands")
 		return 1
 	}
