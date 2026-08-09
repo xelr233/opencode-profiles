@@ -135,3 +135,55 @@ func TestExportProfileMissing(t *testing.T) {
 		t.Fatal("expected error for missing profile")
 	}
 }
+
+func makeSkillSource(t *testing.T, p *paths.Paths, skill string) {
+	t.Helper()
+	dir := filepath.Join(p.SkillSourcesDir(), skill)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("# "+skill+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "data.txt"), []byte("data\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExportWithSkills(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	makeSkillSource(t, p, "brainstorming")
+	makeSkillSource(t, p, "rtk")
+	if err := Export(p, "work", outDir, true, warn); err != nil {
+		t.Fatal(err)
+	}
+	zipPath := filepath.Join(outDir, "work-skills.zip")
+	sk, ok := readZipEntry(t, zipPath, "brainstorming/SKILL.md")
+	if !ok {
+		t.Fatal("missing brainstorming/SKILL.md")
+	}
+	if !strings.Contains(string(sk), "# brainstorming") {
+		t.Fatalf("bad content: %s", sk)
+	}
+	if _, ok := readZipEntry(t, zipPath, "rtk/data.txt"); !ok {
+		t.Fatal("missing rtk/data.txt")
+	}
+	if _, ok := readZipEntry(t, zipPath, "missing-skill/SKILL.md"); ok {
+		t.Fatal("missing-skill should not be exported")
+	}
+}
+
+func TestExportWithSkillsMissingSourceWarns(t *testing.T) {
+	p, outDir, warn := makeExportEnv(t)
+	makeSkillSource(t, p, "brainstorming")
+	// rtk 源不存在，skills.yml 里却有
+	if err := Export(p, "work", outDir, true, warn); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(warn.String(), "rtk") {
+		t.Fatalf("expected warning mentioning rtk, got: %q", warn.String())
+	}
+	if _, ok := readZipEntry(t, filepath.Join(outDir, "work-skills.zip"), "rtk/SKILL.md"); ok {
+		t.Fatal("rtk should be skipped")
+	}
+}

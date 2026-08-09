@@ -11,6 +11,7 @@ import (
 
 	"opencode-profiles/internal/ops"
 	"opencode-profiles/internal/paths"
+	"opencode-profiles/internal/skills"
 )
 
 // stripProviders 读取 opencode.json 内容并删除 provider 键，其余字段原样保留。
@@ -108,5 +109,69 @@ func writeZipBytes(zw *zip.Writer, name string, data []byte) error {
 
 // exportSkillsZip 导出 skills.yml 中引用的技能源为 <name>-skills.zip。缺失源跳过并 warning。
 func exportSkillsZip(p *paths.Paths, name, outDir string, warn io.Writer) error {
-	return nil
+	skillsList, err := skills.ReadSkillsYML(p, name)
+	if err != nil {
+		return err
+	}
+	zipPath := filepath.Join(outDir, name+"-skills.zip")
+	f, err := os.Create(zipPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	zw := zip.NewWriter(f)
+
+	for _, skill := range skillsList {
+		src := p.SkillSource(skill)
+		if _, err := os.Stat(src); err != nil {
+			fmt.Fprintf(warn, "Warning: skill source '%s' not found, skipped\n", skill)
+			continue
+		}
+		err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			rel, err := filepath.Rel(src, path)
+			if err != nil {
+				return err
+			}
+			entry := skill + "/" + rel
+			if d.IsDir() {
+				_, err := zw.Create(entry + "/")
+				return err
+			}
+			return addZipFile(zw, entry, path)
+		})
+		if err != nil {
+			return err
+		}
+	}
+	if err := zw.Close(); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// addZipFile 将文件内容写入 zip 的指定条目。
+func addZipFile(zw *zip.Writer, entry, path string) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	hdr, err := zip.FileInfoHeader(fi)
+	if err != nil {
+		return err
+	}
+	hdr.Name = entry
+	w, err := zw.CreateHeader(hdr)
+	if err != nil {
+		return err
+	}
+	rc, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	_, err = io.Copy(w, rc)
+	return err
 }
