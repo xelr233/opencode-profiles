@@ -374,7 +374,7 @@ func TestGitRollbackCommand(t *testing.T) {
 	writeJSONFile(t, p.ProfileConfig("work"), `{"shell":"zsh"}`)
 	invoke(t, p, db, out, errOut, "--git-commit", "work", "-m", "first")
 	res := invoke(t, p, db, out, errOut, "--git-rollback", "work", "HEAD~1")
-	if res.code != 0 || !strings.Contains(res.stdout, "Rolled back 'work' to HEAD~1") {
+	if res.code != 0 || !strings.Contains(res.stdout, "Rolled back 'work' to HEAD~1; changes are staged, run --git-commit to record") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", res.code, res.stdout, res.stderr)
 	}
 	got, _ := os.ReadFile(p.ProfileConfig("work"))
@@ -405,7 +405,7 @@ func TestGitCommandMutualExclusion(t *testing.T) {
 func TestGitCommandsCannotCombine(t *testing.T) {
 	p, db, out, errOut := newCLIEnv(t)
 	res := invoke(t, p, db, out, errOut, "--git-init", "work", "--git-commit", "work")
-	if res.code != 1 || !strings.Contains(res.stderr, "cannot be combined") {
+	if res.code != 1 || !strings.Contains(res.stderr, "mutually exclusive") {
 		t.Fatalf("code=%d stderr=%q", res.code, res.stderr)
 	}
 }

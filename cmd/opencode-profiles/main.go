@@ -100,7 +100,7 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 		}
 	}
 	if gitCmdCount > 1 {
-		fmt.Fprintln(stderr, "Error: git commands cannot be combined with other commands")
+		fmt.Fprintln(stderr, "Error: git commands are mutually exclusive")
 		return 1
 	}
 	gitCmd := gitCmdCount > 0
@@ -208,7 +208,7 @@ func run(args []string, stdout, stderr io.Writer, p *paths.Paths, dbPath string)
 			fmt.Fprintf(stderr, "Error: %s\n", err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "Rolled back '%s' to %s\n", gitRollbackName, fs.Arg(0))
+		fmt.Fprintf(stdout, "Rolled back '%s' to %s; changes are staged, run --git-commit to record\n", gitRollbackName, fs.Arg(0))
 	} else if switchName != "" {
 		if err := ops.SwitchDB(p, switchName, dbPath, stdout); err != nil {
 			fmt.Fprintf(stderr, "Error: %s\n", err)
